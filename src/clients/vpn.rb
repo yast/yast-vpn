@@ -23,4 +23,4 @@ require "vpn/main_dialog"
 
 Yast::IPSecConf.Read
 VPN::IPSec.reload
-VPN::MainDialog.new(true).run
+VPN::MainDialog.new(can_apply: true).run

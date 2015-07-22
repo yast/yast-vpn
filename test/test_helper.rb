@@ -1,6 +1,3 @@
-# encoding: utf-8
-
-# ------------------------------------------------------------------------------
 # Copyright (c) 2015 SUSE LINUX GmbH, Nuernberg, Germany.
 #
 # This program is free software; you can redistribute it and/or modify it under
@@ -16,26 +13,10 @@
 #
 # ------------------------------------------------------------------------------
 #
+# Summary: Common header for test source files.
 # Authors: Howard Guo <hguo@suse.com>
 
-[Desktop Entry]
-Type=Application
-Categories=Settings;System;Qt;X-SuSE-YaST;X-SuSE-YaST-Net_advanced;
+ENV["Y2DIR"] = File.expand_path("../../src", __FILE__)
 
-X-KDE-ModuleType=Library
-X-KDE-HasReadOnlyMode=true
-X-SuSE-YaST-Call=vpn
-
-X-SuSE-YaST-Group=Net_advanced
-X-SuSE-YaST-RootOnly=true
-X-SuSE-YaST-AutoInst=all
-X-SuSE-YaST-AutoInstResource=vpn
-X-SuSE-YaST-AutoInstClonable=true
-X-SuSE-YaST-Keywords=vpn,ipsec,gateway
-
-Icon=yast-device-tree
-Exec=xdg-su -c "/sbin/yast2 vpn"
-
-Name=VPN Gateway and Clients
-GenericName=Configure VPN gateway and clients using IPSec
-StartupNotify=true
+require "yast"
+require "yast/rspec"

@@ -19,7 +19,6 @@
 # Summary: Functions and routines for manipulating IPSec connection configuration.
 # Authors: Howard Guo <hguo@suse.com>
 
-require "pp"
 require "yast"
 Yast.import "Popup"
 Yast.import "IPSecConf"
@@ -141,17 +140,14 @@ module VPN
 
         # Match the IPSec configuration against known scenarios, return the matching scenario name, or nil if there is none.
         def determine_scenario(conf)
-            scenario_match = nil
-            KNOWN_SCENARIOS.each {|scenario_key, scenario_conf|
-                has_all_necessary_keys = (scenario_conf.keys - conf.keys).length == 0
-                match_necessary_keys = conf.select{|cfg_key, cfg_val|
+            key, _conf = KNOWN_SCENARIOS.find {|scenario_key, scenario_conf|
+                has_all_necessary_keys = (scenario_conf.keys - conf.keys).empty?
+                match_necessary_keys = conf.none?{|cfg_key, cfg_val|
                     scenario_conf.has_key?(cfg_key) && scenario_conf[cfg_key] != cfg_val
-                }.length == 0
-                if has_all_necessary_keys && match_necessary_keys
-                    scenario_match = scenario_key
-                end
+                }
+                has_all_necessary_keys && match_necessary_keys
             }
-            return scenario_match
+            return key
         end
 
         # Retrieve scenario-specific parameters from IPSec configuration.
@@ -193,7 +189,7 @@ module VPN
                     "rightsubnet" => conf.fetch("rightsubnet", "0.0.0.0/0")
                 }
             end
-            return "BUG: this should not happen"
+            raise "get_scenario_specific_params cannot deal with scenario " + scenario.to_s
         end
 
         # Return a user-friendly brief description of the connection.
@@ -211,8 +207,9 @@ module VPN
                 return _("Client - PSK")
             when :client_cert
                 return _("Client - Certificate")
+            else
+                raise "get_friendly_desc cannot deal with configuration " + conf.to_s
             end
-            return "BUG: this should not happen"
         end
 
         # Initialize but does not yet load IPSec connections and secrets from SCR backend.
@@ -222,33 +219,25 @@ module VPN
 
         # (Re)load IPSec connections and secrets from SCR backend. Does not reload SCR backend itself.
         def reload
-            @all_conns = Hash[]
+            @all_conns = {}
             # Load parameters from connections of known scenarios
             conns = Yast::IPSecConf.GetIPSecConnections
-            if conns == nil
-                conns = {}
-            end
+            conns ||= {}
             conns.each { | name, conf|
                 scenario = determine_scenario(conf)
                 if scenario == nil
                     log.info "The connection is not supported: " + name
                 else
-                    @all_conns[name] = {
-                        "name" => name,
-                        "scenario" => scenario
-                    }.merge(get_scenario_specific_params(scenario, conf))
+                    conn_conf = {"name" => name, "scenario" => scenario}
+                    @all_conns[name] = conn_conf.merge(get_scenario_specific_params(scenario, conf))
                 end
             }
-            log.info "Loaded IPSec connections: " + @all_conns.to_s
+            log.info "Loaded IPSec connections: #{@all_conns}"
             # By default, look at the first connection
-            if @all_conns[@curr_conn_name] == nil
-                @curr_conn_name = @all_conns.keys[0]
-            end
+            @curr_conn_name = @all_conns.keys.first unless @all_conns[@curr_conn_name]
             # Assort the IPSec secrets
             orig_secrets = Yast::IPSecConf.GetIPSecSecrets
-            if orig_secrets == nil
-                orig_secrets = {}
-            end
+            orig_secrets ||= {}
             @all_secrets = {
                 :xauth => {}, :eap => {},
                 :psk => {}, :gw_psk => "", :rsa => {}, :gw_rsa => ""
@@ -296,19 +285,11 @@ module VPN
             return @all_conns[@curr_conn_name]
         end
 
+        ALL_GATEWAY_SCENARIOS = [:gw_psk, :gw_cert, :gw_mobile, :gw_win]
+
         # Return :gateway if the scenario indicates a gateway connection. Otherwise :client.
         def get_scenario_conn_type(scenario)
-            case scenario
-                when :gw_psk
-                    return :gateway
-                when :gw_cert
-                    return :gateway
-                when :gw_mobile
-                    return :gateway
-                when :gw_win
-                    return :gateway
-            end
-            return :client
+            ALL_GATEWAY_SCENARIOS.include?(scenario) ? :gateway : :client
         end
 
         # Return :gateway if the current connection is a gateway connection. Otherwise :client.
@@ -323,17 +304,8 @@ module VPN
                 return false
             end
             # Make minimal configuration for the new connection, consists of only a name and scenario
-            if type == :gateway
-                @all_conns[conn_name] = {
-                    "name" => conn_name,
-                    "scenario" => :gw_psk
-                }
-            else
-                @all_conns[conn_name] = {
-                    "name" => conn_name,
-                    "scenario" => :client_psk
-                }
-            end
+            scenario = type == :gateway ? :gw_psk : :client_psk
+            @all_conns[conn_name] = {"name" => conn_name, "scenario" => scenario}
             switch_conn(conn_name)
             return true
         end
@@ -343,16 +315,8 @@ module VPN
             case new_type
             when :gateway
                 # Find an unused gateway scenario
-                unused_gateway_scenario = :nil
-                if find_conn_by_scenario(:gw_psk).length == 0
-                    unused_gateway_scenario = :gw_psk
-                elsif find_conn_by_scenario(:gw_cert).length == 0
-                    unused_gateway_scenario = :gw_cert
-                elsif find_conn_by_scenario(:gw_mobile).length == 0
-                    unused_gateway_scenario = :gw_mobile
-                elsif find_conn_by_scenario(:gw_win).length == 0
-                    unused_gateway_scenario = :gw_win
-                else
+                unused_gateway_scenario = ALL_GATEWAY_SCENARIOS.find {|s| find_conn_by_scenario(s).empty?}
+                if !unused_gateway_scenario
                     Yast::Popup.Error(_("You may only have one gateway connection per scenario.\n" +
                                         "All of gateway scenarios are already used."))
                     return false

@@ -20,61 +20,46 @@
 # Authors: Howard Guo <hguo@suse.com>
 
 require "yast"
+require "ui/dialog"
 Yast.import "UI"
-Yast.import "Icon"
 Yast.import "Label"
 Yast.import "Popup"
 
 module VPN
     # Ask for a PSK (password) for a VPN client.
-    class SetClientPSKDialog
+    class SetClientPSKDialog < UI::Dialog
         include Yast::UIShortcuts
         include Yast::I18n
         include Yast::Logger
 
         def initialize
+            super
             textdomain "vpn"
         end
 
-        # Return a password string, or :nil if cancelled.
-        def run
-            render_all
-            begin
-                return ui_event_loop
-            ensure
-                Yast::UI.CloseDialog()
-            end
+        def dialog_options
+            Opt(:decorated)
         end
 
-        private
-            def render_all
-                Yast::UI.OpenDialog(
-                    Opt(:decorated),
-                    VBox(
-                        Left(MinWidth(30, InputField(Id(:password), "Password:", ""))),
-                        ButtonBox(
-                            PushButton(Id(:ok), Yast::Label.OKButton),
-                            PushButton(Id(:cancel), Yast::Label.CancelButton)
-                        )
-                    )
+        def dialog_content
+            VBox(
+                Left(MinWidth(30, InputField(Id(:password), "Password:", ""))),
+                ButtonBox(
+                    PushButton(Id(:ok), Yast::Label.OKButton),
+                    PushButton(Id(:cancel), Yast::Label.CancelButton)
                 )
-            end
+            )
+        end
 
-            def ui_event_loop
-                loop do
-                    case Yast::UI.UserInput
-                    when :ok
-                        password = Yast::UI.QueryWidget(Id(:password), :Value)
-                        password = password == nil ? "" : password
-                        if password == ""
-                            Yast::Popup.Error(_("Please enter a password."))
-                            redo
-                        end
-                        return password
-                    else
-                        return
-                    end
-                end
+        # Return password string.
+        def ok_handler
+            password = Yast::UI.QueryWidget(Id(:password), :Value)
+            password = password == nil ? "" : password
+            if password == ""
+                Yast::Popup.Error(_("Please enter a password."))
+                return
             end
+            finish_dialog(password)
+        end
     end
 end

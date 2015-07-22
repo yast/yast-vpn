@@ -20,84 +20,85 @@
 # Authors: Howard Guo <hguo@suse.com>
 
 require "yast"
-require "date"
+require "ui/dialog"
 Yast.import "UI"
-Yast.import "Icon"
 Yast.import "Label"
 Yast.import "Popup"
 Yast.import "Service"
 
 module VPN
     # View log dialog displays current status about all IPSec connections.
-    class ViewLogDialog
+    class ViewLogDialog < UI::Dialog
         include Yast::UIShortcuts
         include Yast::I18n
         include Yast::Logger
 
         def initialize
+            super
             textdomain "vpn"
         end
 
-        # Return VPN name string, or :cancel if the dialog is cancelled.
-        def run
-            return if !render_all
-            begin
-                return ui_event_loop
-            ensure
-                Yast::UI.CloseDialog()
+        def dialog_options
+            Opt(:decorated, :defaultsize)
+        end
+
+        def dialog_content
+            VBox(
+                Left(LogView(Id(:daemon_status), "VPN daemon status", 8, 0)),
+                Left(LogView(Id(:conn_status), "All connection status", 8, 0)),
+                Left(Label(Opt(:boldFont), _("The logs are refreshed automatically every 3 seconds."))),
+                HBox(
+                    PushButton(Id(:restart_daemon), _("Restart VPN Daemon")),
+                    PushButton(Id(:finish), Yast::Label.FinishButton)
+                )
+            )
+        end
+
+        def create_dialog
+            return false unless super
+            refresh_status
+            return true
+        end
+
+        # Event handlers.
+        def user_input
+            Yast::UI.TimeoutUserInput(3000)
+        end
+
+        # Refresh log views every 3 seconds, "timeout" is the magical word used by TimeoutUserInput.
+        def timeout_handler
+            refresh_status
+        end
+
+        # Restart IPSec daemon service.
+        def restart_daemon_handler
+            if Yast::Popup.ContinueCancelHeadline(
+                _("Confirm daemon restart"),
+                _("Existing connections will be interrupted.\n" +
+                    "Do you still wish to continue?")
+                )
+                if !(Yast::Service.Active("strongswan") ? Yast::Service.Restart("strongswan") : Yast::Service.Start("strongswan"))
+                    Yast::Popup.Error(_("Failed to restart IPSec daemon"))
+                end
             end
         end
 
+        def finish_handler
+            finish_dialog(nil)
+        end
+
         private
-            def render_all
-                Yast::UI.OpenDialog(
-                    Opt(:decorated, :defaultsize),
-                    VBox(
-                        Left(LogView(Id(:daemon_status), "VPN daemon status", 8, 0)),
-                        Left(LogView(Id(:conn_status), "All connection status", 8, 0)),
-                        Left(Label(Opt(:boldFont), _("The logs are refreshed automatically every 3 seconds."))),
-                        HBox(
-                            PushButton(Id(:restart_daemon), _("Restart VPN Daemon")),
-                            PushButton(Id(:finish), Yast::Label.FinishButton)
-                        )
-                    )
-                )
-                refresh_status
-            end
+        # Read daemon status and refresh the content of log views.
+        def refresh_status
+            sh_daemon_status = Yast::SCR.Execute(Yast::Path.new(".target.bash_output"), "systemctl status strongswan")
+            Yast::UI.ChangeWidget(Id(:daemon_status), :Value, sh_daemon_status["stdout"])
 
-            def refresh_status
-                sh_daemon_status = Yast::SCR.Execute(Yast::Path.new(".target.bash_output"), "systemctl status strongswan")
-                Yast::UI.ChangeWidget(Id(:daemon_status), :Value, sh_daemon_status["stdout"])
-
-                sh_conn_status = Yast::SCR.Execute(Yast::Path.new(".target.bash_output"), "ipsec statusall 2>&1")
-                if sh_conn_status["exit"].zero?
-                    Yast::UI.ChangeWidget(Id(:conn_status), :Value, sh_conn_status["stdout"])
-                else
-                    Yast::UI.ChangeWidget(Id(:conn_status), :Value, _("Status not available: is the daemon running?"))
-                end
+            sh_conn_status = Yast::SCR.Execute(Yast::Path.new(".target.bash_output"), "ipsec statusall 2>&1")
+            if sh_conn_status["exit"].zero?
+                Yast::UI.ChangeWidget(Id(:conn_status), :Value, sh_conn_status["stdout"])
+            else
+                Yast::UI.ChangeWidget(Id(:conn_status), :Value, _("Status not available: is the daemon running?"))
             end
-            
-            # Return VPN name string, or :cancel if the dialog is cancelled.
-            def ui_event_loop
-                loop do
-                    case Yast::UI.TimeoutUserInput(3000)
-                    when :timeout
-                        # Refresh log views every 3 seconds
-                        refresh_status
-                    when :restart_daemon
-                        if Yast::Popup.ContinueCancelHeadline(
-                            _("Confirm daemon restart"),
-                            _("Existing connections will be interrupted.\n" +
-                              "Do you still wish to continue?")
-                            )
-                            if !(Yast::Service.Active("strongswan") ? Yast::Service.Restart("strongswan") : Yast::Service.Start("strongswan"))
-                                Yast::Popup.Error(_("Failed to restart IPSec daemon"))
-                            end
-                        end
-                    else
-                        return
-                    end
-                end
-            end
+        end
     end
 end

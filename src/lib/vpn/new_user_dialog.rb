@@ -20,71 +20,56 @@
 # Authors: Howard Guo <hguo@suse.com>
 
 require "yast"
+require "ui/dialog"
 Yast.import "UI"
-Yast.import "Icon"
 Yast.import "Label"
 Yast.import "Popup"
 
 module VPN
     # Ask for a new username and password combination and return them.
-    class NewUserDialog
+    class NewUserDialog < UI::Dialog
         include Yast::UIShortcuts
         include Yast::I18n
         include Yast::Logger
 
         def initialize
+            super
             textdomain "vpn"
         end
 
-        # Return a tuple of username and password, or :nil if cancelled.
-        def run
-            render_all
-            begin
-                return ui_event_loop
-            ensure
-                Yast::UI.CloseDialog()
-            end
+        def dialog_options
+            Opt(:decorated)
         end
 
-        private
-            def render_all
-                Yast::UI.OpenDialog(
-                    Opt(:decorated),
-                    VBox(
-                        Left(MinWidth(12, InputField(Id(:username), "Username:", ""))),
-                        Left(MinWidth(12, InputField(Id(:password), "Password:", ""))),
-                        ButtonBox(
-                            PushButton(Id(:ok), Yast::Label.OKButton),
-                            PushButton(Id(:cancel), Yast::Label.CancelButton)
-                        )
-                    )
+        def dialog_content
+            VBox(
+                Left(MinWidth(12, InputField(Id(:username), "Username:", ""))),
+                Left(MinWidth(12, InputField(Id(:password), "Password:", ""))),
+                ButtonBox(
+                    PushButton(Id(:ok), Yast::Label.OKButton),
+                    PushButton(Id(:cancel), Yast::Label.CancelButton)
                 )
-            end
+            )
+        end
 
-            def ui_event_loop
-                loop do
-                    case Yast::UI.UserInput
-                    when :ok
-                        username = Yast::UI.QueryWidget(Id(:username), :Value)
-                        password = Yast::UI.QueryWidget(Id(:password), :Value)
-                        # Trailing/leading spaces are not allowed in username
-                        username = username == nil ? "" : username.strip
-                        # They are however allowed in password
-                        password = password == nil ? "" : password
-                        if username == "" || password == ""
-                            Yast::Popup.Error(_("Please enter both username and password."))
-                            redo
-                        end
-                        if (username =~ /^[A-Za-z0-9_-]+$/) == nil
-                            Yast::Popup.Error(_("Please refrain from using special characters and spaces in the username.\n" +
-                                                "Acceptable characters are: A-Z, a-z, 0-9, dash, underscore"))
-                            redo
-                        end
-                        return [username, password]
-                    else
-                        return
-                    end
-                end
+        # Return tuple of username/password.
+        def ok_handler
+            username = Yast::UI.QueryWidget(Id(:username), :Value)
+            password = Yast::UI.QueryWidget(Id(:password), :Value)
+            # Trailing/leading spaces are not allowed in username
+            username = username == nil ? "" : username.strip
+            # They are however allowed in password
+            password = password == nil ? "" : password
+            if username == "" || password == ""
+                Yast::Popup.Error(_("Please enter both username and password."))
+                return
             end
+            if (username =~ /^[A-Za-z0-9_-]+$/) == nil
+                Yast::Popup.Error(_("Please refrain from using special characters and spaces in the username.\n" +
+                                    "Acceptable characters are: A-Z, a-z, 0-9, dash, underscore"))
+                return
+            end
+            finish_dialog([username, password])
+        end
     end
 end

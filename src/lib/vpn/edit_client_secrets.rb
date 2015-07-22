@@ -20,70 +20,119 @@
 # Authors: Howard Guo <hguo@suse.com>
 
 require "yast"
-require "pp"
+require "ui/dialog"
 require "vpn/set_client_cert_dialog"
 require "vpn/set_client_psk_dialog"
 Yast.import "UI"
-Yast.import "Icon"
 Yast.import "Label"
 Yast.import "Popup"
 
 module VPN
     # Manage VPN client secrets.
-    class EditClientSecretsDialog
+    class EditClientSecretsDialog < UI::Dialog
         include Yast::UIShortcuts
         include Yast::I18n
         include Yast::Logger
 
         def initialize
+            super
             textdomain "vpn"
+
+            @require_psk = false
+            @require_cert = false
+            if IPSec.get_current_conn["scenario"] == :client_psk
+                @require_psk = true
+            else
+                @require_cert = true
+            end
         end
 
-        # Return nothing.
-        def run
-            render_all
-            begin
-                return ui_event_loop
-            ensure
-                Yast::UI.CloseDialog()
+        def dialog_options
+            Opt(:decorated)
+        end
+
+        def dialog_content
+            psk_frame = Frame(_("Pre-shared key for gateways"), VBox(
+                                MinSize(40, 8, Table(Id(:psk_table), Header(_("Gateway IP"), _("Pre-shared key"), []))),
+                            HBox(
+                                PushButton(Id(:psk_set), _("Set")),
+                                CheckBox(Id(:psk_show_pwd), Opt(:notify), _("Show key")))))
+            cert_frame = Frame(_("Certificate/key pair for gateways"), VBox(
+                            MinSize(40, 8, Table(Id(:cert_table), Header(_("Gateway IP"), _("Certificate"), _("Key"), []))),
+                            PushButton(Id(:cert_set), _("Set"))))
+
+            display_frame = nil
+            if @require_psk
+                display_frame = psk_frame
+            elsif @require_cert
+                display_frame = cert_frame
             end
+
+            VBox(
+                display_frame,
+                ButtonBox(
+                    PushButton(Id(:ok), Yast::Label.OKButton),
+                    PushButton(Id(:cancel), Yast::Label.CancelButton)
+                )
+            )
+        end
+
+        def create_dialog
+            return false unless super
+            reload_tables
+            return true
+        end
+
+        # Event handlers
+
+        # Set password for a gateway
+        def psk_set_handler
+            gw_ip = Yast::UI.QueryWidget(Id(:psk_table), :CurrentItem)
+            new_pwd = SetClientPSKDialog.new.run
+            if new_pwd == nil
+                return
+            end
+            IPSec.set_client_pwd(gw_ip, new_pwd)
+            reload_tables
+        end
+
+        # Toggle show password.
+        def psk_show_pwd_handler
+            reload_tables
+        end
+
+        # Save certificate settings
+        def cert_set_handler
+            # Set certificate for a gateway
+            gw_ip = Yast::UI.QueryWidget(Id(:cert_table), :CurrentItem)
+            existing_setting = IPSec.get_client_certs[gw_ip]
+            result = SetClientCertDialog.new(existing_setting[:cert], existing_setting[:key]).run
+            if result == nil
+                return
+            end
+            IPSec.set_client_cert(gw_ip, result[0], result[1])
+            reload_tables
+        end
+
+        # Make sure that tables are filled, then save all settings.
+        def ok_handler
+            if @require_psk
+                missing_psks = IPSec.get_client_psks.select{ |ip, pass| pass == nil || pass == "" }
+                if missing_psks.length > 0
+                    Yast::Popup.Error(_("Shared keys for the following gateways are still missing:\n%s") %
+                                        [missing_psks.keys.join(", ")])
+                end
+            elsif @require_cert
+                missing_certs = IPSec.get_client_certs.select{ |ip, certkey| certkey[:key] == nil || certkey[:key] == "" }
+                if missing_certs.length > 0
+                    Yast::Popup.Error(_("Certificates for the following gateways are still missing:\n%s") %
+                                        [missing_certs.keys.join(", ")])
+                end
+            end
+            finish_dialog(nil)
         end
 
         private
-            def render_all
-                psk_frame = Frame(_("Pre-shared key for gateways"), VBox(
-                                MinSize(40, 8, Table(Id(:psk_table), Header(_("Gateway IP"), _("Pre-shared key"), []))),
-                                HBox(
-                                    PushButton(Id(:psk_set), _("Set")),
-                                    CheckBox(Id(:psk_show_pwd), Opt(:notify), _("Show key")))))
-                cert_frame = Frame(_("Certificate/key pair for gateways"), VBox(
-                                MinSize(40, 8, Table(Id(:cert_table), Header(_("Gateway IP"), _("Certificate"), _("Key"), []))),
-                                PushButton(Id(:cert_set), _("Set"))))
-
-                display_frame = nil
-                @require_psk = false
-                @require_cert = false
-                if IPSec.get_current_conn["scenario"] == :client_psk
-                    display_frame = psk_frame
-                    @require_psk = true
-                else
-                    display_frame = cert_frame
-                    @require_cert = true
-                end
-
-                Yast::UI.OpenDialog(
-                    Opt(:decorated),
-                    VBox(
-                        display_frame,
-                        ButtonBox(
-                            PushButton(Id(:ok), Yast::Label.OKButton),
-                            PushButton(Id(:cancel), Yast::Label.CancelButton)
-                        )
-                    )
-                )
-                reload_tables
-            end
-
             # Reload password/certificate tables.
             def reload_tables
                 # Load PSKs
@@ -97,54 +146,6 @@ module VPN
                     Item(gw_ip, cert_and_key[:cert], cert_and_key[:key])
                 }
                 Yast::UI.ChangeWidget(Id(:cert_table), :Items, cert_items)
-            end
-
-            def ui_event_loop
-                loop do
-                    case Yast::UI.UserInput
-                    when :psk_set
-                        # Set password for a gateway
-                        gw_ip = Yast::UI.QueryWidget(Id(:psk_table), :CurrentItem)
-                        new_pwd = SetClientPSKDialog.new.run
-                        if new_pwd == nil
-                            redo
-                        end
-                        IPSec.set_client_pwd(gw_ip, new_pwd)
-                        reload_tables
-                    when :psk_show_pwd
-                        reload_tables
-                    when :cert_set
-                        # Set certificate for a gateway
-                        gw_ip = Yast::UI.QueryWidget(Id(:cert_table), :CurrentItem)
-                        existing_setting = IPSec.get_client_certs[gw_ip]
-                        result = SetClientCertDialog.new(existing_setting[:cert], existing_setting[:key]).run
-                        if result == nil
-                            redo
-                        end
-                        IPSec.set_client_cert(gw_ip, result[0], result[1])
-                        reload_tables
-                    when :ok
-                        # Make sure that tables are filled
-                        if @require_psk
-                            missing_psks = IPSec.get_client_psks.select{ |ip, pass| pass == nil || pass == "" }
-                            if missing_psks.length > 0
-                                Yast::Popup.Error(_("Shared keys for the following gateways are still missing:\n%s") %
-                                                  [missing_psks.keys.join(", ")])
-                                redo
-                            end
-                        elsif @require_cert
-                            missing_certs = IPSec.get_client_certs.select{ |ip, certkey| certkey[:key] == nil || certkey[:key] == "" }
-                            if missing_certs.length > 0
-                                Yast::Popup.Error(_("Certificates for the following gateways are still missing:\n%s") %
-                                                  [missing_certs.keys.join(", ")])
-                                redo
-                            end
-                        end
-                        return
-                    else
-                        return
-                    end
-                end
             end
     end
 end

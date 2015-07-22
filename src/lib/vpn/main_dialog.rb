@@ -20,6 +20,7 @@
 # Authors: Howard Guo <hguo@suse.com>
 
 require "yast"
+require "ui/dialog"
 require "vpn/new_vpn_dialog"
 require "vpn/view_log_dialog"
 require "vpn/edit_client_secrets"
@@ -32,70 +33,327 @@ Yast.import "Popup"
 
 module VPN
     # Show a list of all connections and allow user to modify the connection configuration.
-    class MainDialog
+    class MainDialog < UI::Dialog
         include Yast::UIShortcuts
         include Yast::I18n
         include Yast::Logger
 
         # If can_apply is true, settings will be applied when Apply button is clicked.
-        def initialize(can_apply)
+        def initialize(can_apply: true)
+            super()
             textdomain "vpn"
+
+            # When true, the Apply button will save configuration to this system.
+            # When false, configuration will only be saved to SCR.
             @can_apply = can_apply
         end
 
-        # Return :finish on save, or :abort on abort.
-        def run
-            render_all
-            begin
-                return ui_event_loop
-            ensure
-                Yast::UI.CloseDialog()
-            end
+        def dialog_options
+            Opt(:decorated, :defaultsize)
         end
 
-        private
+        def dialog_content
             # Render global options, connection list, and connection configuration frames.
-            def render_all
-                Yast::UI.OpenDialog(
-                    Opt(:decorated, :defaultsize),
-                    VBox(
-                        Left(HBox(
-                            Yast::Icon::Simple("yast-device-tree"),
-                            Heading(_("VPN Gateway and Client"))
+            VBox(
+                Left(HBox(
+                    Yast::Icon::Simple("yast-device-tree"),
+                    Heading(_("VPN Gateway and Client"))
+                )),
+                HBox(
+                    # Left side: global config & connection management
+                    HWeight(35, VBox(
+                        VSpacing(1),
+                        Frame(_("Global Configuration"),
+                            VBox(
+                                Left(CheckBox(Id(:enable_daemon), _("Enable VPN daemon"), Yast::IPSecConf.DaemonEnabled?)),
+                                Left(HBox(
+                                    CheckBox(Id(:fix_mss), _("Reduce TCP MSS"), Yast::IPSecConf.TCPMSS1024Enabled?),
+                                    PushButton(Id(:fix_mss_help), _("?"))))
                         )),
-                        HBox(
-                            # Left side: global config & connection management
-                            HWeight(35, VBox(
-                                VSpacing(1),
-                                Frame(_("Global Configuration"),
-                                    VBox(
-                                        Left(CheckBox(Id(:enable_daemon), _("Enable VPN daemon"), Yast::IPSecConf.DaemonEnabled)),
-                                        Left(HBox(
-                                            CheckBox(Id(:fix_mss), _("Reduce TCP MSS"), Yast::IPSecConf.TCPMSS1024Enabled),
-                                            PushButton(Id(:fix_mss_help), _("?"))))
-                                )),
-                                Frame(_("All VPNs"), ReplacePoint(Id(:conn_list), Empty())),
-                                VBox(
-                                    HBox(
-                                        PushButton(Id(:new_vpn), _("New VPN")),
-                                        PushButton(Id(:del_vpn), _("Delete VPN"))
-                                    ),
-                                    PushButton(Id(:view_log), _("View Connection Status"))
-                                )
-                            )),
-                            # Right side: connection config editor
-                            HWeight(65, ReplacePoint(Id(:conn_conf), Empty()))
-                        ),
-                        HBox(
-                            PushButton(Id(:ok), Yast::Label.OKButton),
-                            PushButton(Id(:abort), Yast::Label.AbortButton)
+                        Frame(_("All VPNs"), ReplacePoint(Id(:conn_list), Empty())),
+                        VBox(
+                            HBox(
+                                PushButton(Id(:new_vpn), _("New VPN")),
+                                PushButton(Id(:del_vpn), _("Delete VPN"))
+                            ),
+                            PushButton(Id(:view_log), _("View Connection Status"))
                         )
-                    )
+                    )),
+                    # Right side: connection config editor
+                    HWeight(65, ReplacePoint(Id(:conn_conf), Empty()))
+                ),
+                HBox(
+                    PushButton(Id(:ok), Yast::Label.OKButton),
+                    PushButton(Id(:abort), Yast::Label.AbortButton)
                 )
+            )
+        end
+
+        def create_dialog
+            return false unless super
+            render_conn_list
+            render_conn_conf
+            return true
+        end
+
+        # Event handlers
+
+        # Display a help text to let user know why reducing MSS is sometimes necessary.
+        def fix_mss_help_handler
+            Yast::Popup.LongMessage(_("If VPN clients have trouble accessing certain Internet sites, " +
+                "it is possible that the affected hosts prevent automatic MTU (maximum transmission " +
+                "unit) discovery due to incorrect firewall configuration.\n" +
+                "Reducing TCP-MSS will correct the situation; however, the available bandwidth will be " +
+                "reduced by about 10%."))
+        end
+
+        # Prompt for a new VPN connection name and create a new VPN.
+        def new_vpn_handler
+            if NewVPNDialog.new.run == :ok
                 render_conn_list
                 render_conn_conf
             end
+        end
 
+        # Delete the chosen VPN connection.
+        def del_vpn_handler
+            if IPSec.get_current_conn == nil
+                return
+            end
+            if !Yast::Popup.ContinueCancelHeadline(
+                _("Delete connection"),
+                _("Are you sure to delete connection ") + IPSec.get_current_conn["name"] + "?"
+            )
+                return
+            end
+            IPSec.del_conn
+            render_conn_list
+            render_conn_conf
+        end
+
+        # Open dialog to display IPSec daemon log and all connection status.
+        def view_log_handler
+            ViewLogDialog.new.run
+        end
+
+        # Save all IPSec configuration.
+        def ok_handler
+            # Check for incomplete configuration
+            scr_conf, unfilled_params = IPSec.make_scr_conf
+            if unfilled_params.length > 0
+                Yast::Popup.Error(_("Please complete configuration for the following connections:\n" +
+                                    unfilled_params.keys.join(", ")))
+                return
+            end
+            # Consider enabling the daemon
+            enable_daemon = Yast::UI.QueryWidget(Id(:enable_daemon), :Value) == true
+            if !enable_daemon && scr_conf.length > 0 &&
+                    Yast::Popup.YesNo(_("There are VPN connections but the daemon is not enabled.\n" +
+                            "Would you like to enable the VPN daemon?"))
+                Yast::UI.ChangeWidget(Id(:enable_daemon), :Value, true)
+                enable_daemon = true
+            end
+            # Save new settings and apply
+            Yast::IPSecConf.Import({
+                "enable_ipsec" => enable_daemon,
+                "tcp_mss_1024" => !!Yast::UI.QueryWidget(:fix_mss, :Value),
+                "ipsec_conns" => scr_conf,
+                "ipsec_secrets" => IPSec.make_scr_secrets
+            })
+            # Settings are memorised but not yet applied
+            if !@can_apply
+                finish_dialog(:finish)
+                return
+            end
+            scr_success = Yast::IPSecConf.Write
+            # Ask user whether he wants to view daemon log
+            popup_msg = nil
+            if scr_success
+                popup_msg = _("Settings have been successfully applied.")
+            else
+                popup_msg = _("Failed to configure IPSec daemon.")
+            end
+            if enable_daemon
+                popup_msg += "\n" + _("Would you like to view daemon log and connection status?")
+                if Yast::Popup.YesNo(popup_msg)
+                    ViewLogDialog.new.run
+                else
+                    finish_dialog(:finish)
+                    return
+                end
+            else
+                Yast::Popup.Message(popup_msg)
+                finish_dialog(:finish)
+                return
+            end
+        end
+
+        # Abandon all changes and quit.
+        def abort_handler
+            if Yast::Popup.ReallyAbort(true)
+                finish_dialog(:abort)
+            end
+        end
+
+        # Select a connection from connection list, load its configuration.
+        def conn_table_handler
+            conn_name = Yast::UI.QueryWidget(Id(:conn_table), :CurrentItem)
+            if conn_name != nil
+                IPSec.switch_conn(conn_name)
+                render_conn_conf
+            end
+        end
+
+        # Gateway: give access to all IPv4 networks to VPN clients.
+        # Client: use VPN gateway for all IPv4 network access.
+        def conn_access_all4_handler
+            if IPSec.get_current_conn_type == :gateway
+                IPSec.change_conn_param("leftsubnet", "0.0.0.0/0")
+            else
+                IPSec.change_conn_param("rightsubnet", "0.0.0.0/0")
+            end
+            # Disable specific subnet input
+            Yast::UI.ChangeWidget(Id(:conn_access_subnet), :Enabled, false)
+            Yast::UI.ChangeWidget(Id(:conn_access_subnet), :Value, "")
+        end
+
+        # Gateway: give access to all IPv6 networks to VPN clients.
+        # Client: use VPN gateway for all IPv6 network access.
+        def conn_access_all6_handler
+            if IPSec.get_current_conn_type == :gateway
+                IPSec.change_conn_param("leftsubnet", "::/0")
+            else
+                IPSec.change_conn_param("rightsubnet", "::/0")
+            end
+            # Disable specific subnet input
+            Yast::UI.ChangeWidget(Id(:conn_access_subnet), :Enabled, false)
+            Yast::UI.ChangeWidget(Id(:conn_access_subnet), :Value, "")
+        end
+
+        # Enable text field for subnet input.
+        def conn_access_limited_handler
+            Yast::UI.ChangeWidget(Id(:conn_access_subnet), :Enabled, true)
+        end
+
+        # Gateway: specify networks (CIDRs) tunneled through IPSec.
+        # Client: specify networks (CIDRs) accessed via IPSec tunnel.
+        def conn_access_subnet_handler
+            subnet = Yast::UI.QueryWidget(Id(:conn_access_subnet), :Value)
+            if IPSec.get_current_conn_type == :gateway
+                IPSec.change_conn_param("leftsubnet", subnet)
+            else
+                IPSec.change_conn_param("rightsubnet", subnet)
+            end
+        end
+
+        # Switch connection type to gateway.
+        def conn_type_gateway_handler
+            if IPSec.get_current_conn_type == :gateway
+                return
+            end
+            IPSec.change_conn_type(:gateway)
+            render_conn_list
+            render_conn_conf
+        end
+
+        # Switch connection type to client.
+        def conn_type_client_handler
+            if IPSec.get_current_conn_type == :client
+                return
+            end
+            IPSec.change_conn_type(:client)
+            render_conn_list
+            render_conn_conf
+        end
+
+        # Change gateway IP for a client connection.
+        def conn_right_handler
+            right_ip = Yast::UI.QueryWidget(Id(:conn_right), :Value)
+            IPSec.change_conn_param("right", right_ip)
+        end
+
+        # Change client IP pool for a gateway.
+        def conn_sourceip_handler
+            source_ip = Yast::UI.QueryWidget(Id(:conn_sourceip), :Value)
+            IPSec.change_conn_param("rightsourceip", source_ip)
+        end
+
+        # Open dialog to edit VPN client passwords/certificates.
+        def edit_client_secrets_handler
+            right_ip = Yast::UI.QueryWidget(Id(:conn_right), :Value)
+            if right_ip == nil || right_ip.strip == ""
+                Yast::Popup.Error(_("Please enter gateway IP before editing credentials."))
+                return
+            end
+            EditClientSecretsDialog.new.run
+        end
+
+        # Open dialog to edit VPN gateway passwords/certificates/credentials.
+        def edit_gw_secrets_handler
+            EditGWSecretsDialog.new.run
+        end
+
+        # Change gateway type to site2site PSK.
+        def conn_gw_psk_handler
+            if IPSec.get_current_conn["scenario"] == :gw_psk
+                return
+            end
+            IPSec.change_scenario(:gw_psk)
+            render_conn_list
+            render_conn_conf
+        end
+
+        # Change gateway type to site2site certificate.
+        def conn_gw_cert_handler
+            if IPSec.get_current_conn["scenario"] == :gw_cert
+                return
+            end
+            IPSec.change_scenario(:gw_cert)
+            render_conn_list
+            render_conn_conf
+        end
+
+        # Change gateway type to android/apple gateway.
+        def conn_gw_mobile_handler
+            if IPSec.get_current_conn["scenario"] == :gw_mobile
+                return
+            end
+            IPSec.change_scenario(:gw_mobile)
+            render_conn_list
+            render_conn_conf
+        end
+
+        # Change gateway type to windows gateway.
+        def conn_gw_win_handler
+            if IPSec.get_current_conn["scenario"] == :gw_win
+                return
+            end
+            IPSec.change_scenario(:gw_win)
+            render_conn_list
+            render_conn_conf
+        end
+
+        # Change client type to site2site PSK.
+        def conn_client_psk_handler
+            if IPSec.get_current_conn["scenario"] == :client_psk
+                return
+            end
+            IPSec.change_scenario(:client_psk)
+            render_conn_list
+            render_conn_conf
+        end
+
+        # Change client type to site2site certificate.
+        def conn_client_cert_handler
+            if IPSec.get_current_conn["scenario"] == :client_cert
+                return
+            end
+            IPSec.change_scenario(:client_cert)
+            render_conn_list
+            render_conn_conf
+        end
+
+        private
             # Render a table of configured gateway and client connections.
             def render_conn_list
                 Yast::UI.ReplaceWidget(Id(:conn_list), VBox(
@@ -216,220 +474,6 @@ module VPN
                 Yast::UI.ChangeWidget(Id(:conn_sourceip), :Value, conn["rightsourceip"])
                 # client - gateway IP
                 Yast::UI.ChangeWidget(Id(:conn_right), :Value, conn["right"])
-            end
-
-            def ui_event_loop
-                loop do
-                    case Yast::UI.UserInput
-                    when :fix_mss_help
-                        Yast::Popup.LongMessage(_("If VPN clients have trouble accessing certain Internet sites, " +
-                            "it is possible that the affected hosts prevent automatic MTU (maximum transmission " +
-                            "unit) discovery due to incorrect firewall configuration.\n" +
-                            "Reducing TCP-MSS will correct the situation; however, the available bandwidth will be " +
-                            "reduced by about 10%."))
-                    when :new_vpn
-                        # Prompt for a VPN connection name and create a new VPN
-                        if NewVPNDialog.new.run == :ok
-                            render_conn_list
-                            render_conn_conf
-                        end
-                    when :del_vpn
-                        # Delete the chosen VPN connection
-                        if IPSec.get_current_conn == nil
-                            redo
-                        end
-                        if !Yast::Popup.ContinueCancelHeadline(
-                            _("Delete connection"),
-                            _("Are you sure to delete connection ") + IPSec.get_current_conn["name"] + "?"
-                        )
-                            redo
-                        end
-                        IPSec.del_conn
-                        render_conn_list
-                        render_conn_conf
-                    when :view_log
-                        # Display IPSec daemon log and all connection status
-                        ViewLogDialog.new.run
-                    when :ok
-                        # Apply settings
-                        # Check for incomplete configuration
-                        scr_conf, unfilled_params = IPSec.make_scr_conf
-                        if unfilled_params.length > 0
-                            Yast::Popup.Error(_("Please complete configuration for the following connections:\n" +
-                                                unfilled_params.keys.join(", ")))
-                            redo
-                        end
-                        # Consider enabling the daemon
-                        enable_daemon = Yast::UI.QueryWidget(Id(:enable_daemon), :Value) == true
-                        if !enable_daemon && scr_conf.length > 0 &&
-                                Yast::Popup.YesNo(_("There are VPN connections but the daemon is not enabled.\n" +
-                                      "Would you like to enable the VPN daemon?"))
-                            Yast::UI.ChangeWidget(Id(:enable_daemon), :Value, true)
-                            enable_daemon = true
-                        end
-                        # Save new settings and apply
-                        Yast::IPSecConf.Import({
-                            "enable_ipsec" => enable_daemon,
-                            "tcp_mss_1024" => !!Yast::UI.QueryWidget(:fix_mss, :Value),
-                            "ipsec_conns" => scr_conf,
-                            "ipsec_secrets" => IPSec.make_scr_secrets
-                        })
-                        # Settings are memorised but not yet applied
-                        if !@can_apply
-                            return :finish
-                        end
-                        scr_success = Yast::IPSecConf.Write
-                        # Ask user whether he wants to view daemon log
-                        popup_msg = nil
-                        if scr_success
-                            popup_msg = _("Settings have been successfully applied.")
-                        else
-                            popup_msg = _("Failed to configure IPSec daemon.")
-                        end
-                        if enable_daemon
-                            popup_msg += "\n" + _("Would you like to view daemon log and connection status?")
-                            if Yast::Popup.YesNo(popup_msg)
-                                ViewLogDialog.new.run
-                            else
-                                return :finish
-                            end
-                        else
-                            Yast::Popup.Message(popup_msg)
-                            return :finish
-                        end
-                    when :abort
-                        # Do nothing and close this YaST module
-                        if Yast::Popup.ReallyAbort(true)
-                            return :abort
-                        end
-                    when :conn_table
-                        # Select a connection from connection list
-                        conn_name = Yast::UI.QueryWidget(Id(:conn_table), :CurrentItem)
-                        if conn_name != nil
-                            IPSec.switch_conn(conn_name)
-                            render_conn_conf
-                        end
-                    when :conn_access_all4
-                        # Gateway: give access to all IPv4 networks to VPN clients
-                        # Client: use VPN gateway for all IPv4 network access
-                        if IPSec.get_current_conn_type == :gateway
-                            IPSec.change_conn_param("leftsubnet", "0.0.0.0/0")
-                        else
-                            IPSec.change_conn_param("rightsubnet", "0.0.0.0/0")
-                        end
-                        # Disable specific subnet input
-                        Yast::UI.ChangeWidget(Id(:conn_access_subnet), :Enabled, false)
-                        Yast::UI.ChangeWidget(Id(:conn_access_subnet), :Value, "")
-                    when :conn_access_all6
-                        # Gateway: give access to all IPv6 networks to VPN clients
-                        # Client: use VPN gateway for all IPv6 network access
-                        if IPSec.get_current_conn_type == :gateway
-                            IPSec.change_conn_param("leftsubnet", "::/0")
-                        else
-                            IPSec.change_conn_param("rightsubnet", "::/0")
-                        end
-                        # Disable specific subnet input
-                        Yast::UI.ChangeWidget(Id(:conn_access_subnet), :Enabled, false)
-                        Yast::UI.ChangeWidget(Id(:conn_access_subnet), :Value, "")
-                    when :conn_access_limited
-                        # Enable the text field for subnet input
-                        Yast::UI.ChangeWidget(Id(:conn_access_subnet), :Enabled, true)
-                    when :conn_access_subnet
-                        # Gateway: specify networks (CIDRs) tunneled through IPSec
-                        # Client: specify networks (CIDRs) accessed via IPSec tunnel
-                        subnet = Yast::UI.QueryWidget(Id(:conn_access_subnet), :Value)
-                        if IPSec.get_current_conn_type == :gateway
-                            IPSec.change_conn_param("leftsubnet", subnet)
-                        else
-                            IPSec.change_conn_param("rightsubnet", subnet)
-                        end
-                    when :conn_type_gateway
-                        # Switch VPN connection type to gateway
-                        if IPSec.get_current_conn_type == :gateway
-                            redo
-                        end
-                        IPSec.change_conn_type(:gateway)
-                        render_conn_list
-                        render_conn_conf
-                    when :conn_type_client
-                        # Switch VPN connection type to client
-                        if IPSec.get_current_conn_type == :client
-                            redo
-                        end
-                        IPSec.change_conn_type(:client)
-                        render_conn_list
-                        render_conn_conf
-                    when :conn_right
-                        # Set gateway IP for client
-                        right_ip = Yast::UI.QueryWidget(Id(:conn_right), :Value)
-                        IPSec.change_conn_param("right", right_ip)
-                    when :conn_sourceip
-                        # Set client IP pool for gateway
-                        source_ip = Yast::UI.QueryWidget(Id(:conn_sourceip), :Value)
-                        IPSec.change_conn_param("rightsourceip", source_ip)
-                    when :edit_client_secrets
-                        # Edit VPN client passwords/certificates
-                        right_ip = Yast::UI.QueryWidget(Id(:conn_right), :Value)
-                        if right_ip == nil || right_ip.strip == ""
-                            Yast::Popup.Error(_("Please enter gateway IP before editing credentials."))
-                            redo
-                        end
-                        EditClientSecretsDialog.new.run
-                    when :edit_gw_secrets
-                        # Edit VPN gateway credentials/passwords/certificates
-                        EditGWSecretsDialog.new.run
-                    when :conn_gw_psk
-                        # Change gateway type to site2site PSK
-                        if IPSec.get_current_conn["scenario"] == :gw_psk
-                            redo
-                        end
-                        IPSec.change_scenario(:gw_psk)
-                        render_conn_list
-                        render_conn_conf
-                    when :conn_gw_cert
-                        # Change gateway type to site2site certificate
-                        if IPSec.get_current_conn["scenario"] == :gw_cert
-                            redo
-                        end
-                        IPSec.change_scenario(:gw_cert)
-                        render_conn_list
-                        render_conn_conf
-                    when :conn_gw_mobile
-                        # Change gateway type to android/apple gateway
-                        if IPSec.get_current_conn["scenario"] == :gw_mobile
-                            redo
-                        end
-                        IPSec.change_scenario(:gw_mobile)
-                        render_conn_list
-                        render_conn_conf
-                    when :conn_gw_win
-                        # Change gateway type to windows gateway
-                        if IPSec.get_current_conn["scenario"] == :gw_win
-                            redo
-                        end
-                        IPSec.change_scenario(:gw_win)
-                        render_conn_list
-                        render_conn_conf
-                    when :conn_client_psk
-                        # Change client type to site2site PSK
-                        if IPSec.get_current_conn["scenario"] == :client_psk
-                            redo
-                        end
-                        IPSec.change_scenario(:client_psk)
-                        render_conn_list
-                        render_conn_conf
-                    when :conn_client_cert
-                        # Change client type to site2site certificate
-                        if IPSec.get_current_conn["scenario"] == :client_cert
-                            redo
-                        end
-                        IPSec.change_scenario(:client_cert)
-                        render_conn_list
-                        render_conn_conf
-                    else
-                        return :abort
-                    end
-                end
             end
     end
 end

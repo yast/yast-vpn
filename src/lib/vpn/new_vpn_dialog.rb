@@ -20,74 +20,58 @@
 # Authors: Howard Guo <hguo@suse.com>
 
 require "yast"
+require "ui/dialog"
 Yast.import "UI"
-Yast.import "Icon"
 Yast.import "Label"
 Yast.import "Popup"
 
 module VPN
     # Create a new VPN connection - by default it is a site-to-site gateway.
-    class NewVPNDialog
+    class NewVPNDialog < UI::Dialog
         include Yast::UIShortcuts
         include Yast::I18n
         include Yast::Logger
 
         def initialize
+            super
             textdomain "vpn"
         end
 
-        # Return :ok if new VPN connection is created, otherwise :cancel.
-        def run
-            return if !render_all
-            begin
-                return ui_event_loop
-            ensure
-                Yast::UI.CloseDialog()
-            end
+        def dialog_options
+            Opt(:decorated)
         end
 
-        private
-            def render_all
-                Yast::UI.OpenDialog(
-                    Opt(:decorated),
-                    VBox(
-                        MinWidth(12, InputField(Id(:name), _("Please enter a name for the new VPN connection"), "")),
-                        ButtonBox(
-                            PushButton(Id(:ok), Yast::Label.OKButton),
-                            PushButton(Id(:cancel), Yast::Label.CancelButton)
-                        )
-                    )
+        def dialog_content
+            VBox(
+                MinWidth(12, InputField(Id(:name), _("Please enter a name for the new VPN connection"), "")),
+                ButtonBox(
+                    PushButton(Id(:ok), Yast::Label.OKButton),
+                    PushButton(Id(:cancel), Yast::Label.CancelButton)
                 )
-            end
-            
+            )
+        end
+
         # Return :ok if new VPN connection is created, otherwise :cancel.
-            def ui_event_loop
-                loop do
-                    case Yast::UI.UserInput
-                    when :ok
-                        name = Yast::UI.QueryWidget(Id(:name), :Value).strip
-                        if name == ""
-                            Yast::Popup.Error(_("Please enter a VPN connection name."))
-                            redo
-                        end
-                        if (name =~ /^[A-Za-z_-]+[A-Za-z0-9_-]*$/) == nil
-                            Yast::Popup.Error(_("Please refrain from using special characters and spaces in the name.\n" +
-                                                "Acceptable characters are: A-Z, a-z, 0-9, dash, underscore\n" +
-                                                "Name has to begin with a letter."))
-                            redo
-                        end
-                        # Create new connection as a gateway
-                        # User will be able to change it to client on main dialog
-                        if IPSec.create_conn(name, :client)
-                            IPSec.switch_conn(name)
-                            return :ok
-                        else
-                            redo
-                        end
-                    else
-                        return
-                    end
-                end
+        def ok_handler
+            name = Yast::UI.QueryWidget(Id(:name), :Value).strip
+            if name == ""
+                Yast::Popup.Error(_("Please enter a VPN connection name."))
+                return
             end
+            if (name =~ /^[A-Za-z_-]+[A-Za-z0-9_-]*$/) == nil
+                Yast::Popup.Error(_("Please refrain from using special characters and spaces in the name.\n" +
+                                    "Acceptable characters are: A-Z, a-z, 0-9, dash, underscore\n" +
+                                    "Name has to begin with a letter."))
+                return
+            end
+            # Create new connection as a gateway
+            # User will be able to change it to client on main dialog
+            if IPSec.create_conn(name, :client)
+                IPSec.switch_conn(name)
+                finish_dialog(:ok)
+            else
+                finish_dialog(:cancel)
+            end
+        end
     end
 end
