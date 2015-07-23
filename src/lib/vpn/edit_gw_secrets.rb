@@ -171,6 +171,16 @@ module VPN
             finish_dialog(nil)
         end
 
+        def select_gw_cert_handler
+            path = Yast::UI.AskForExistingFile("/", "", _("Pick a PEM encoded certificate file"))
+            Yast::UI.ChangeWidget(Id(:gw_cert), :Value, path) unless path.nil?
+        end
+
+        def select_gw_cert_key_handler
+            path = Yast::UI.AskForExistingFile("/", "", _("Pick a PEM encoded certificate key file"))
+            Yast::UI.ChangeWidget(Id(:gw_cert_key), :Value, path) unless path.nil?
+        end
+
         private
         def mk_gw_psk_frame
             Frame(_("Gateway pre-shared key"), VBox(
@@ -180,8 +190,12 @@ module VPN
 
         def mk_gw_cert_frame
             Frame(_("Gateway certificate"), VBox(
-                Left(MinWidth(40, InputField(Id(:gw_cert), _("Path to certificate file"), ""))),
-                Left(MinWidth(40, InputField(Id(:gw_cert_key), _("Path to certificate key file"), "")))))
+                Left(MinWidth(40, HBox(
+                    InputField(Id(:gw_cert), _("Path to certificate file"), ""),
+                    PushButton(Id(:select_gw_cert), _("Pick.."))))),
+                Left(MinWidth(40, HBox(
+                    InputField(Id(:gw_cert_key), _("Path to certificate key file"), ""),
+                    PushButton(Id(:select_gw_cert_key), _("Pick..")))))))
         end
 
         def mk_xauth_frame

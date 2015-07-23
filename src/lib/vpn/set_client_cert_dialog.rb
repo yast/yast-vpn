@@ -45,14 +45,29 @@ module VPN
 
         def dialog_content
             VBox(
-                Left(MinWidth(30, InputField(Id(:cert), "Path to certificate file:", @cert_path))),
-                Left(MinWidth(30, InputField(Id(:cert_key), "Path to certificate key file:", @key_path))),
+                Left(MinWidth(30, HBox(
+                        InputField(Id(:cert), _("Path to certificate file:"), @cert_path),
+                        PushButton(Id(:select_cert), _("Pick.."))))),
+                Left(MinWidth(30, HBox(
+                        InputField(Id(:cert_key), _("Path to certificate key file:"), @key_path),
+                        PushButton(Id(:select_cert_key), _("Pick.."))))),
                 Left(Label(_("Please do not store the key in the certificate file itself."))),
                 ButtonBox(
                     PushButton(Id(:ok), Yast::Label.OKButton),
                     PushButton(Id(:cancel), Yast::Label.CancelButton)
                 )
             )
+        end
+
+        # Event handlers
+        def select_cert_handler
+            path = Yast::UI.AskForExistingFile("/", "", _("Pick a PEM encoded certificate file"))
+            Yast::UI.ChangeWidget(Id(:cert), :Value, path) unless path.nil?
+        end
+
+        def select_cert_key_handler
+            path = Yast::UI.AskForExistingFile("/", "", _("Pick a PEM encoded certificate key file"))
+            Yast::UI.ChangeWidget(Id(:cert_key), :Value, path) unless path.nil?
         end
 
         # Return tuple of certificate and certificate key locations.
