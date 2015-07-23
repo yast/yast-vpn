@@ -40,9 +40,10 @@ module VPN
 
             @require_psk = false
             @require_cert = false
-            if IPSec.get_current_conn["scenario"] == :client_psk
+            case IPSec.get_current_conn["scenario"]
+            when :client_psk
                 @require_psk = true
-            else
+            when :client_cert
                 @require_cert = true
             end
         end
@@ -66,6 +67,8 @@ module VPN
                 display_frame = psk_frame
             elsif @require_cert
                 display_frame = cert_frame
+            else
+                display_frame = Empty()
             end
 
             VBox(
@@ -89,9 +92,7 @@ module VPN
         def psk_set_handler
             gw_ip = Yast::UI.QueryWidget(Id(:psk_table), :CurrentItem)
             new_pwd = SetClientPSKDialog.new.run
-            if new_pwd == nil
-                return
-            end
+            return unless new_pwd
             IPSec.set_client_pwd(gw_ip, new_pwd)
             reload_tables
         end
@@ -107,9 +108,7 @@ module VPN
             gw_ip = Yast::UI.QueryWidget(Id(:cert_table), :CurrentItem)
             existing_setting = IPSec.get_client_certs[gw_ip]
             result = SetClientCertDialog.new(existing_setting[:cert], existing_setting[:key]).run
-            if result == nil
-                return
-            end
+            return unless result
             IPSec.set_client_cert(gw_ip, result[0], result[1])
             reload_tables
         end

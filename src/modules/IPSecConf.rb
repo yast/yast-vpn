@@ -215,7 +215,7 @@ module Yast
             SCR.Write(path(".target.string"), FW_CUSTOMRULES_FILE, IPSecConf.GenFirewallScript)
             existing_rules = SCR.Read(path(".sysconfig.SuSEfirewall2.FW_CUSTOMRULES")).strip
             if !existing_rules.include?(FW_CUSTOMRULES_FILE)
-                existing_rules << "" unless existing_rules.empty?
+                existing_rules << " " unless existing_rules.empty?
                 SCR.Write(path(".sysconfig.SuSEfirewall2.FW_CUSTOMRULES"), existing_rules + FW_CUSTOMRULES_FILE)
                 SCR.Write(path(".sysconfig.SuSEfirewall2"), nil)
             end

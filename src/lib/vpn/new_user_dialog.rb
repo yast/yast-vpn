@@ -57,9 +57,9 @@ module VPN
             username = Yast::UI.QueryWidget(Id(:username), :Value)
             password = Yast::UI.QueryWidget(Id(:password), :Value)
             # Trailing/leading spaces are not allowed in username
-            username = username == nil ? "" : username.strip
+            username.strip! if username
             # They are however allowed in password
-            password = password == nil ? "" : password
+            password ||= ""
             if username == "" || password == ""
                 Yast::Popup.Error(_("Please enter both username and password."))
                 return

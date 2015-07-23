@@ -68,7 +68,7 @@ module VPN
                                 Left(CheckBox(Id(:enable_daemon), _("Enable VPN daemon"), Yast::IPSecConf.DaemonEnabled?)),
                                 Left(HBox(
                                     CheckBox(Id(:fix_mss), _("Reduce TCP MSS"), Yast::IPSecConf.TCPMSS1024Enabled?),
-                                    PushButton(Id(:fix_mss_help), _("?"))))
+                                    PushButton(Id(:fix_mss_help), "?")))
                         )),
                         Frame(_("All VPNs"), ReplacePoint(Id(:conn_list), Empty())),
                         VBox(
