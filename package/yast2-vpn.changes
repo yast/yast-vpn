@@ -2,5 +2,5 @@
 Fri Jul 17 11:49:05 UTC 2015 - hguo@suse.com
 
 - New package. Initial version, initial release.
-  YaST VPN is a module for configuring VPN gateway and clients.
-  It currently supports IPSec IKEv1 and IKEv2.
+  yast2-vpn: A module for creating VPN gateway and client connections
+  to secure site-to-site communication via IPSec VPN.

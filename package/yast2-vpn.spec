@@ -31,7 +31,7 @@ BuildRequires:  rubygem(yast-rake), rubygem(rspec)
 PreReq:         %fillup_prereq
 
 %description
-A YaST module for configuring VPN gateway and clients. It currently supports IPSec IKEv1 and IKEv2.
+A YaST module for managing VPN gateway and client connections to secure site-to-site communication via IPSec VPN.
 
 %prep
 %setup -q
