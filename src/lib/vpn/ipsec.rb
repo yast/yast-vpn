@@ -223,15 +223,22 @@ module VPN
             # Load parameters from connections of known scenarios
             conns = Yast::IPSecConf.GetIPSecConnections
             conns ||= {}
+            has_unsupported_scenario = false
             conns.each { | name, conf|
                 scenario = determine_scenario(conf)
                 if scenario == nil
+                    has_unsupported_scenario = true
                     log.info "The connection is not supported: " + name
                 else
                     conn_conf = {"name" => name, "scenario" => scenario}
                     @all_conns[name] = conn_conf.merge(get_scenario_specific_params(scenario, conf))
                 end
             }
+            if has_unsupported_scenario || !Yast::IPSecConf.GetUnsupportedConfiguration.empty? ||
+                !Yast::IPSecConf.GetUnsupportedSecrets.empty?
+                Yast::Popup.LongWarning(_("ipsec.conf and ipsec.secrets have been manipulated outside of this module.\n" +
+                    "Continue using the module will remove your customisation."))
+            end
             log.info "Loaded IPSec connections: #{@all_conns}"
             # By default, look at the first connection
             @curr_conn_name = @all_conns.keys.first unless @all_conns[@curr_conn_name]

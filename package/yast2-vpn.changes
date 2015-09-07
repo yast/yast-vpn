@@ -1,4 +1,10 @@
 -------------------------------------------------------------------
+Mon Sep  7 12:45:26 UTC 2015 - hguo@suse.com
+
+- Display a warning if ipsec.conf or ipsec.secrets appear to have
+  been manually manipulated.
+
+-------------------------------------------------------------------
 Fri Jul 17 11:49:05 UTC 2015 - hguo@suse.com
 
 - New package. Initial version, initial release.
