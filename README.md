@@ -27,6 +27,15 @@ The module is now ready to run:
 
     $ sudo /usr/sbin/yast2 vpn
 
+
+Usage
+-----
+Please visit the following links to openSUSE wiki site for introduction to VPN and the detailed usage instructions of the YaST VPN module:
+
+- [Portal:VPN](https://en.opensuse.org/Portal:VPN)
+- [YaST VPN Module](https://en.opensuse.org/Portal:VPN/YaST_VPN_Module)
+- [YaST VPN Module Troubleshoot](https://en.opensuse.org/Portal:VPN/YaST_VPN_Module_Troubleshoot)
+
 Legal Warning
 ------------
 Use of encrypted network traffic is illegal in countries where such activities are outlawed. Please observe and comply with advice from your local regulatory authority in regards to network traffic encryption before using the YaST VPN module.
