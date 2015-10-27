@@ -1,4 +1,9 @@
 -------------------------------------------------------------------
+Tue Oct 27 08:42:26 UTC 2015 - hguo@suse.com
+
+- Fix build failure on Leap.
+
+-------------------------------------------------------------------
 Mon Sep  7 12:45:26 UTC 2015 - hguo@suse.com
 
 - Display a warning if ipsec.conf or ipsec.secrets appear to have

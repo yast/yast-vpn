@@ -16,7 +16,7 @@
 #
 
 Name:           yast2-vpn
-Version:        3.1.1
+Version:        3.1.2
 Release:        0
 License:        GPL-2.0
 URL:            https://github.com/yast/yast-vpn

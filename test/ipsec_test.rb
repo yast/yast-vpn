@@ -19,7 +19,10 @@
 # Summary: Test the functions and features of IPSec configuration models.
 # Authors: Howard Guo <hguo@suse.com>
 
-require_relative "./test_helper"
+ENV["Y2DIR"] = File.expand_path("../../src", __FILE__)
+
+require "yast"
+require "yast/rspec"
 require "vpn/ipsec"
 
 describe VPN::IPSec do
