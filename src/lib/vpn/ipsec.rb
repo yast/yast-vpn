@@ -527,8 +527,8 @@ module VPN
                 merged_conf.delete("name")
                 merged_conf.delete("scenario")
                 # Find blanks that aren't filled
-                param_blanks = merged_conf.select{|key, val| val == nil || val.to_s.strip == ""}.keys
-                if param_blanks.length > 0
+                param_blanks = merged_conf.select{|_key, val| val.to_s.strip == ""}.keys
+                if param_blanks.any?
                     unfilled_blanks[name] = param_blanks
                 end
                 scr_conf[name] = merged_conf

@@ -30,6 +30,9 @@ module Yast
         include Yast::Logger
         FW_CUSTOMRULES_FILE = "/etc/YaST2/vpn_firewall_rules"
 
+        # If TCP MSS reduction is required, the new MSS will be this value.
+        REDUCED_MSS = 1220
+
         def initialize
             log.info "IPSecConf is initialised"
             @orig_conf = {}
@@ -58,7 +61,7 @@ module Yast
             # Read daemon settings
             @enable_ipsec = Service.Enabled("strongswan")
             customrules_content = SCR.Read(path(".target.string"), FW_CUSTOMRULES_FILE)
-            @tcp_reduce_mss = !customrules_content.nil? && customrules_content.include?("--set-mss 1220")
+            @tcp_reduce_mss = !customrules_content.nil? && customrules_content.include?("--set-mss #{REDUCED_MSS}")
             @autoyast_modified = true
         end
 
@@ -130,18 +133,17 @@ module Yast
             # Reduce TCP MSS - if this has to be done, it must come before FORWARD and MASQUERADE
             inet_access = ""
             if @tcp_reduce_mss
-                inet_access += "iptables -A FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1221:65535 -j TCPMSS --set-mss 1220\n" +
-                               "ip6tables -A FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1221:65535 -j TCPMSS --set-mss 1220\n"
+                inet_access += "iptables -A FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss #{REDUCED_MSS+1}:65535 -j TCPMSS --set-mss #{REDUCED_MSS}\n" +
+                               "ip6tables -A FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss #{REDUCED_MSS+1}:65535 -j TCPMSS --set-mss #{REDUCED_MSS}\n"
             end
             # Forwarding for Internet access
-            forward_template = "%s -A FORWARD -s %s -j ACCEPT\n%s -A FORWARD -d %s -j ACCEPT\n"
-            masq_template = "%s -t nat -A POSTROUTING -s %s -j MASQUERADE\n"
             inet_access_networks.each { |cidr|
                 iptables = "iptables"
                 if cidr.include?(":")
                     iptables = "ip6tables"
                 end
-                inet_access += forward_template % [iptables, cidr, iptables, cidr] + masq_template % [iptables, cidr]
+                inet_access += "#{iptables} -A FORWARD -s #{cidr} -j ACCEPT\n#{iptables} -A FORWARD -d #{cidr} -j ACCEPT\n"
+                inet_access += "#{iptables} -t nat -A POSTROUTING -s #{cidr} -j MASQUERADE\n"
             }
             script << func_template % {func_name: "fw_custom_before_masq", content: inet_access}
             # Nothing in denyall or finished

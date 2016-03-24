@@ -324,7 +324,7 @@ describe VPN::IPSec do
     end
 
     describe ".make_scr_conf" do
-        it "Makes SCR-compatible IPSec config" do
+        it "Makes SCR-compatible IPSec config with new parameter assignments" do
             # Introduce unnecessary parameters, make_scr_conf will get rid of these
             VPN::IPSec.switch_conn("gw_psk0")
             VPN::IPSec.change_conn_param("abc", 123)

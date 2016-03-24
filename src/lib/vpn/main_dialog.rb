@@ -104,7 +104,7 @@ module VPN
                 "it is possible that the affected hosts prevent automatic MTU (maximum transmission " +
                 "unit) discovery due to incorrect firewall configuration.\n" +
                 "Reducing TCP-MSS will correct the situation; however, the available bandwidth will be " +
-                "reduced by about 12%."))
+                "reduced by about 10%."))
         end
 
         # Prompt for a new VPN connection name and create a new VPN.
