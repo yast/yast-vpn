@@ -84,7 +84,7 @@ module VPN
                 ),
                 HBox(
                     PushButton(Id(:ok), Yast::Label.OKButton),
-                    PushButton(Id(:abort), Yast::Label.AbortButton)
+                    PushButton(Id(:cancel), Yast::Label.CancelButton)
                 )
             )
         end
@@ -188,11 +188,9 @@ module VPN
             end
         end
 
-        # Abandon all changes and quit.
-        def abort_handler
-            if Yast::Popup.ReallyAbort(true)
-                finish_dialog(:abort)
-            end
+        # Quit the dialog.
+        def cancel_handler
+            finish_dialog(:cancel)
         end
 
         # Select a connection from connection list, load its configuration.
