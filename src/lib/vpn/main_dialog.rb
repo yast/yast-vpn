@@ -67,7 +67,7 @@ module VPN
                             VBox(
                                 Left(CheckBox(Id(:enable_daemon), _("Enable VPN daemon"), Yast::IPSecConf.DaemonEnabled?)),
                                 Left(HBox(
-                                    CheckBox(Id(:fix_mss), _("Reduce TCP MSS"), Yast::IPSecConf.TCPMSS1024Enabled?),
+                                    CheckBox(Id(:fix_mss), _("Reduce TCP MSS"), Yast::IPSecConf.TCPReduceMSS?),
                                     PushButton(Id(:fix_mss_help), "?")))
                         )),
                         Frame(_("All VPNs"), ReplacePoint(Id(:conn_list), Empty())),
@@ -104,7 +104,7 @@ module VPN
                 "it is possible that the affected hosts prevent automatic MTU (maximum transmission " +
                 "unit) discovery due to incorrect firewall configuration.\n" +
                 "Reducing TCP-MSS will correct the situation; however, the available bandwidth will be " +
-                "reduced by about 10%."))
+                "reduced by about 12%."))
         end
 
         # Prompt for a new VPN connection name and create a new VPN.
@@ -156,7 +156,7 @@ module VPN
             # Save new settings and apply
             Yast::IPSecConf.Import({
                 "enable_ipsec" => enable_daemon,
-                "tcp_mss_1024" => !!Yast::UI.QueryWidget(:fix_mss, :Value),
+                "tcp_reduce_mss" => !!Yast::UI.QueryWidget(:fix_mss, :Value),
                 "ipsec_conns" => scr_conf,
                 "ipsec_secrets" => IPSec.make_scr_secrets
             })
@@ -212,6 +212,8 @@ module VPN
             else
                 IPSec.change_conn_param("rightsubnet", "0.0.0.0/0")
             end
+            # Force UDP encapsulation only for IPv4 (it does not work for v6)
+            IPSec.change_conn_param("forceencaps", "yes")
             # Disable specific subnet input
             Yast::UI.ChangeWidget(Id(:conn_access_subnet), :Enabled, false)
             Yast::UI.ChangeWidget(Id(:conn_access_subnet), :Value, "")
@@ -225,6 +227,8 @@ module VPN
             else
                 IPSec.change_conn_param("rightsubnet", "::/0")
             end
+            # If this was an IPv4 gateway and now an IPv6 gateway, make sure there's no forceencaps
+            IPSec.change_conn_param("forceencaps", nil)
             # Disable specific subnet input
             Yast::UI.ChangeWidget(Id(:conn_access_subnet), :Enabled, false)
             Yast::UI.ChangeWidget(Id(:conn_access_subnet), :Value, "")
@@ -239,6 +243,8 @@ module VPN
         # Client: specify networks (CIDRs) accessed via IPSec tunnel.
         def conn_access_subnet_handler
             subnet = Yast::UI.QueryWidget(Id(:conn_access_subnet), :Value)
+            # Since I cannot tell whether the new subnet is v4 or v6, get rid of forceencaps.
+            IPSec.change_conn_param("forceencaps", nil)
             if IPSec.get_current_conn_type == :gateway
                 IPSec.change_conn_param("leftsubnet", subnet)
             else

@@ -413,6 +413,9 @@ module VPN
                 end
             end
             get_current_conn[param_name] = val
+            if val == nil
+                get_current_conn.delete(param_name)
+            end
         end
 
         # Change gateway password.
@@ -518,15 +521,13 @@ module VPN
                 conn_template = SCENARIO_TEMPLATES[conf["scenario"]]
                 # Find customised parameters
                 customisation = conf.select{|key, val| conn_template[key] == nil}
-                # Remove keys that don't belong to the scenario
-                customisation.delete_if {|key, val| !conn_template.has_key?(key)}
                 # Merge customised with the template
                 merged_conf = conn_template.merge(customisation)
                 # Remove parameters that aren't configuration or don't belong to the scenario
                 merged_conf.delete("name")
                 merged_conf.delete("scenario")
                 # Find blanks that aren't filled
-                param_blanks = merged_conf.select{|key, val| val == nil || val.strip == ""}.keys
+                param_blanks = merged_conf.select{|key, val| val == nil || val.to_s.strip == ""}.keys
                 if param_blanks.length > 0
                     unfilled_blanks[name] = param_blanks
                 end

@@ -345,6 +345,7 @@ describe VPN::IPSec do
                 "dpdtimeout"=>"600",
                 "dpddelay"=>"60",
                 "leftsubnet"=>"192.168.82.0/24",
+                "abc" => 123,
                 "rightsourceip"=>"192.168.83.0/24"},
             "gw_cert1"=>
                 {"auto"=>"add",
