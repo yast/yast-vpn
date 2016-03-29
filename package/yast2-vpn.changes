@@ -1,4 +1,14 @@
 -------------------------------------------------------------------
+Thu Mar 24 11:15:40 UTC 2016 - hguo@suse.com
+
+- Fix several important issues:
+  * Properly reduce TCP MSS instead of setting it to a fixed value.
+  * Force UDP encapsulation in case of IPv4 gateway.
+  * Fix two cases of incorrect SUSEfirewall and iptables configuration.
+
+Further implements fate#320616.
+
+-------------------------------------------------------------------
 Tue Oct 27 08:42:26 UTC 2015 - hguo@suse.com
 
 - Fix build failure on Leap.

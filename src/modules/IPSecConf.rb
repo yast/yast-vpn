@@ -30,6 +30,9 @@ module Yast
         include Yast::Logger
         FW_CUSTOMRULES_FILE = "/etc/YaST2/vpn_firewall_rules"
 
+        # If TCP MSS reduction is required, the new MSS will be this value.
+        REDUCED_MSS = 1220
+
         def initialize
             log.info "IPSecConf is initialised"
             @orig_conf = {}
@@ -41,7 +44,7 @@ module Yast
             @ipsec_secrets = {"psk" => [], "rsa" => [], "eap" => [], "xauth" => []}
 
             @enable_ipsec = false
-            @tcp_mss_1024 = false
+            @tcp_reduce_mss = false
             @autoyast_modified = false
         end
 
@@ -58,7 +61,7 @@ module Yast
             # Read daemon settings
             @enable_ipsec = Service.Enabled("strongswan")
             customrules_content = SCR.Read(path(".target.string"), FW_CUSTOMRULES_FILE)
-            @tcp_mss_1024 = !customrules_content.nil? && customrules_content.include?("--set-mss 1024")
+            @tcp_reduce_mss = !customrules_content.nil? && customrules_content.include?("--set-mss #{REDUCED_MSS}")
             @autoyast_modified = true
         end
 
@@ -97,9 +100,9 @@ module Yast
             return @enable_ipsec
         end
 
-        # Return true if TCP MSS 1024 workaround is enabled, otherwise false.
-        def TCPMSS1024Enabled?
-            return @tcp_mss_1024
+        # Return true if TCP MSS reduction workaround is enabled, otherwise false.
+        def TCPReduceMSS?
+            return @tcp_reduce_mss
         end
 
         # Create a firewall configuration script for all VPN gateways. Return the script content
@@ -129,19 +132,18 @@ module Yast
             script << func_template % {func_name: "fw_custom_before_port_handling", content: ""}
             # Reduce TCP MSS - if this has to be done, it must come before FORWARD and MASQUERADE
             inet_access = ""
-            if @tcp_mss_1024
-                inet_access += "iptables -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1024\n" +
-                               "ip6tables -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1024\n"
+            if @tcp_reduce_mss
+                inet_access += "iptables -A FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss #{REDUCED_MSS+1}:65535 -j TCPMSS --set-mss #{REDUCED_MSS}\n" +
+                               "ip6tables -A FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss #{REDUCED_MSS+1}:65535 -j TCPMSS --set-mss #{REDUCED_MSS}\n"
             end
             # Forwarding for Internet access
-            forward_template = "%s -A FORWARD -s %s -j ACCEPT\n"
-            masq_template = "%s -t nat -A POSTROUTING -s %s -j MASQUERADE\n"
             inet_access_networks.each { |cidr|
                 iptables = "iptables"
                 if cidr.include?(":")
                     iptables = "ip6tables"
                 end
-                inet_access += forward_template % [iptables, cidr] + masq_template % [iptables, cidr]
+                inet_access += "#{iptables} -A FORWARD -s #{cidr} -j ACCEPT\n#{iptables} -A FORWARD -d #{cidr} -j ACCEPT\n"
+                inet_access += "#{iptables} -t nat -A POSTROUTING -s #{cidr} -j MASQUERADE\n"
             }
             script << func_template % {func_name: "fw_custom_before_masq", content: inet_access}
             # Nothing in denyall or finished
@@ -219,6 +221,7 @@ module Yast
                 SCR.Write(path(".sysconfig.SuSEfirewall2.FW_CUSTOMRULES"), existing_rules + FW_CUSTOMRULES_FILE)
                 SCR.Write(path(".sysconfig.SuSEfirewall2"), nil)
             end
+            SuSEFirewall.Read
             if SuSEFirewall.IsEnabled
                 if @enable_ipsec
                     if !SuSEFirewall.IsStarted
@@ -255,7 +258,7 @@ module Yast
                 return false
             end
             @enable_ipsec = !!params["enable_ipsec"]
-            @tcp_mss_1024 = !!params["tcp_mss_1024"]
+            @tcp_reduce_mss = !!params["tcp_reduce_mss"]
             @ipsec_conns = params.fetch("ipsec_conns", {})
             @ipsec_secrets = params.fetch("ipsec_secrets", {})
             @autoyast_modified = true
@@ -267,7 +270,7 @@ module Yast
             log.info("IPSecConf.Export is called, connections are: " + @ipsec_conns.keys.to_s)
             return {
                 "enable_ipsec" => @enable_ipsec,
-                "tcp_mss_1024" => @tcp_mss_1024,
+                "tcp_reduce_mss" => @tcp_reduce_mss,
                 "ipsec_conns" => @ipsec_conns,
                 "ipsec_secrets" => @ipsec_secrets
             }
@@ -278,7 +281,7 @@ module Yast
             log.info("IPSecConf.Summary is called")
             ret = Summary.AddHeader("", _("VPN Global Settings"))
             ret = Summary.AddLine(ret, _("Enable VPN (IPSec) daemon: %s") % [(!!@enable_ipsec).to_s])
-            ret = Summary.AddLine(ret, _("Reduce TCP MSS to 1024: %s") % [(!!@tcp_mss_1024).to_s])
+            ret = Summary.AddLine(ret, _("Reduce TCP MSS: %s") % [(!!@tcp_reduce_mss).to_s])
             ret = Summary.AddHeader(ret, _("Gateway and Connections"))
             if @ipsec_conns != nil
                 @ipsec_conns.each{|name, conf|
@@ -320,7 +323,7 @@ module Yast
             @ipsec_secrets = {"psk" => [], "rsa" => [], "eap" => [], "xauth" => []}
 
             @enable_ipsec = false
-            @tcp_mss_1024 = false
+            @tcp_reduce_mss = false
             @autoyast_modified = false
         end
 
