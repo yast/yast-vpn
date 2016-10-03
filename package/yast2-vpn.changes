@@ -1,4 +1,9 @@
 -------------------------------------------------------------------
+Mon Oct  3 12:00:46 UTC 2016 - igonzalezsosa@suse.com
+
+- Fix translation in the connection status dialog (bsc#994349)
+
+-------------------------------------------------------------------
 Thu Mar 24 11:15:40 UTC 2016 - hguo@suse.com
 
 - Fix several important issues:

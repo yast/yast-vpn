@@ -44,8 +44,8 @@ module VPN
 
         def dialog_content
             VBox(
-                Left(LogView(Id(:daemon_status), "VPN daemon status", 8, 0)),
-                Left(LogView(Id(:conn_status), "All connection status", 8, 0)),
+                Left(LogView(Id(:daemon_status), _("VPN daemon status"), 8, 0)),
+                Left(LogView(Id(:conn_status), _("All connection status"), 8, 0)),
                 Left(Label(Opt(:boldFont), _("The logs are refreshed automatically every 3 seconds."))),
                 HBox(
                     PushButton(Id(:restart_daemon), _("Restart VPN Daemon")),
