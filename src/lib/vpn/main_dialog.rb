@@ -46,6 +46,8 @@ module VPN
             # When true, the Apply button will save configuration to this system.
             # When false, configuration will only be saved to SCR.
             @can_apply = can_apply
+            # When true, the user has already acknowledged to the "configuration success" prompt.
+            @success_acknowledged = false
         end
 
         def dialog_options
@@ -82,7 +84,7 @@ module VPN
                     # Right side: connection config editor
                     HWeight(65, ReplacePoint(Id(:conn_conf), Empty()))
                 ),
-                HBox(
+                ButtonBox(
                     PushButton(Id(:ok), Yast::Label.OKButton),
                     PushButton(Id(:cancel), Yast::Label.CancelButton)
                 )
@@ -175,7 +177,8 @@ module VPN
             end
             if enable_daemon
                 popup_msg += "\n" + _("Would you like to view daemon log and connection status?")
-                if Yast::Popup.YesNo(popup_msg)
+                if !@success_acknowledged && Yast::Popup.YesNo(popup_msg)
+                    @success_acknowledged = true
                     ViewLogDialog.new.run
                 else
                     finish_dialog(:finish)

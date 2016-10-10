@@ -1,4 +1,11 @@
 -------------------------------------------------------------------
+Mon Oct 10 12:04:12 UTC 2016 - hguo@suse.com
+
+- Instead of creating its own firewall custom-rules, put firewall
+  commands into user's own custom-rules file.
+  Bump version to 3.1.4 for bsc#1002744.
+
+-------------------------------------------------------------------
 Mon Oct  3 12:00:46 UTC 2016 - igonzalezsosa@suse.com
 
 - Fix translation in the connection status dialog (bsc#994349)
