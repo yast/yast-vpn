@@ -207,10 +207,9 @@ module Yast
                 end
             end
             # Configure/deconfigure firewall
+            uninstall_customrules
             if @enable_ipsec
                 install_customrules(gen_firewall_commands)
-            else
-                uninstall_customrules
             end
             SuSEFirewall.Read
             if SuSEFirewall.IsEnabled
@@ -521,7 +520,9 @@ fw_custom_after_finished
             customrules_file = get_susefw_customrules()
             if customrules_file == nil
                 # If user is not already using custom rules script, set custom rules script to the default location.
-                SCR.Write(path(".sysconfig.SuSEfirewall2.FW_CUSTOMRULES"), CUSTOMRULES_FILE)
+                new_file = CUSTOMRULES_FILE + '.applied'
+                IO.write(new_file, merge_into_customrules(template, cmds))
+                SCR.Write(path(".sysconfig.SuSEfirewall2.FW_CUSTOMRULES"), new_file)
                 SCR.Write(path(".sysconfig.SuSEfirewall2"), nil)
             else
                 # Merge commands into the existing custom rules script.

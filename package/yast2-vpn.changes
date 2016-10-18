@@ -1,4 +1,12 @@
 -------------------------------------------------------------------
+Tue Oct 18 14:48:11 UTC 2016 - hguo@suse.com
+
+- The fix of bsc#1002744 was slightly faulty and causes VPN to
+  continuelly overwrite user's firewall script, it also introduced
+  a regression making it unable to turn off TCP MSS reduction.
+  This update 3.1.5 addresses both issues.
+
+-------------------------------------------------------------------
 Mon Oct 10 12:04:12 UTC 2016 - hguo@suse.com
 
 - Instead of creating its own firewall custom-rules, put firewall
