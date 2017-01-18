@@ -1,12 +1,11 @@
-language: cpp
+sudo: required
+language: bash
+services:
+  - docker
+
 before_install:
-    # disable rvm, use system Ruby
-    - rvm reset
-    - wget https://raw.githubusercontent.com/yast/yast-devtools/master/travis-tools/travis_setup.sh
-    - sh ./travis_setup.sh -p "ruby2.1 rake yast2-devtools yast2 yast2-testsuite" -g "yast-rake yard gettext rspec"
+  - docker build -t yast-vpn-image .
 script:
-    - rake check:syntax
-    - rake check:pot
-    - rake check:license
-    - rake test:unit
-    - sudo rake install
+  # the "yast-travis-ruby" script is included in the base yastdevel/ruby image
+  # see https://github.com/yast/docker-yast-ruby/blob/master/yast-travis-ruby
+  - docker run -it -e TRAVIS=1 -e TRAVIS_JOB_ID="$TRAVIS_JOB_ID" yast-vpn-image yast-travis-ruby
