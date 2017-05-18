@@ -143,8 +143,8 @@ module VPN
             # Check for incomplete configuration
             scr_conf, unfilled_params = IPSec.make_scr_conf
             if unfilled_params.length > 0
-                Yast::Popup.Error(_("Please complete configuration for the following connections:\n" +
-                                    unfilled_params.keys.join(", ")))
+                Yast::Popup.Error(_("Please complete configuration for the following connections:\n") +
+                                    unfilled_params.keys.join(", "))
                 return
             end
             # Consider enabling the daemon
