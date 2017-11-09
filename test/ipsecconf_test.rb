@@ -211,214 +211,24 @@ describe Yast::IPSecConf do
             exported["tcp_reduce_mss"] = true
             Yast::IPSecConf.Import(exported)
             expect(Yast::IPSecConf.gen_firewall_commands).to eq [
-                "iptables -A INPUT -p udp --dport 500 -j ACCEPT",
-                "iptables -A INPUT -p udp --dport 4500 -j ACCEPT",
-                "ip6tables -A INPUT -p udp --dport 500 -j ACCEPT",
-                "ip6tables -A INPUT -p udp --dport 4500 -j ACCEPT",
-                "iptables -A INPUT -p 50 -j ACCEPT",
-                "ip6tables -A INPUT -p 50 -j ACCEPT",
-                "iptables -A FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1221:65535 -j TCPMSS --set-mss 1220",
-                "ip6tables -A FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1221:65535 -j TCPMSS --set-mss 1220",
-                "iptables -A FORWARD -s 192.168.83.0/24 -j ACCEPT",
-                "iptables -A FORWARD -d 192.168.83.0/24 -j ACCEPT",
-                "iptables -t nat -A POSTROUTING -s 192.168.83.0/24 -j MASQUERADE",
-                "iptables -A FORWARD -s 192.168.98.0/24 -j ACCEPT",
-                "iptables -A FORWARD -d 192.168.98.0/24 -j ACCEPT",
-                "iptables -t nat -A POSTROUTING -s 192.168.98.0/24 -j MASQUERADE",
-                "iptables -A FORWARD -s 192.168.99.0/24 -j ACCEPT",
-                "iptables -A FORWARD -d 192.168.99.0/24 -j ACCEPT",
-                "iptables -t nat -A POSTROUTING -s 192.168.99.0/24 -j MASQUERADE"
+                "iptables -I INPUT -p udp --dport 500 -j ACCEPT",
+                "iptables -I INPUT -p udp --dport 4500 -j ACCEPT",
+                "ip6tables -I INPUT -p udp --dport 500 -j ACCEPT",
+                "ip6tables -I INPUT -p udp --dport 4500 -j ACCEPT",
+                "iptables -I INPUT -p 50 -j ACCEPT",
+                "ip6tables -I INPUT -p 50 -j ACCEPT",
+                "iptables -I FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1221:65535 -j TCPMSS --set-mss 1220",
+                "ip6tables -I FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1221:65535 -j TCPMSS --set-mss 1220",
+                "iptables -I FORWARD -s 192.168.83.0/24 -j ACCEPT",
+                "iptables -I FORWARD -d 192.168.83.0/24 -j ACCEPT",
+                "iptables -t nat -I POSTROUTING -s 192.168.83.0/24 -j MASQUERADE",
+                "iptables -I FORWARD -s 192.168.98.0/24 -j ACCEPT",
+                "iptables -I FORWARD -d 192.168.98.0/24 -j ACCEPT",
+                "iptables -t nat -I POSTROUTING -s 192.168.98.0/24 -j MASQUERADE",
+                "iptables -I FORWARD -s 192.168.99.0/24 -j ACCEPT",
+                "iptables -I FORWARD -d 192.168.99.0/24 -j ACCEPT",
+                "iptables -t nat -I POSTROUTING -s 192.168.99.0/24 -j MASQUERADE"
             ]
-        end
-    end
-
-    describe ".merge_into_customrules" do
-        it "Merge iptable commands into appropriate sections of rules file" do
-            txt = "#/bin/bash
-fw_custom_after_chain_creation() {
-true
-}
-fw_custom_after_chain_creation
-fw_custom_before_port_handling() {
-true
-}
-fw_custom_before_port_handling
-fw_custom_before_masq() {
-true
-}
-fw_custom_before_masq
-fw_custom_before_denyall() {
-true
-}
-fw_custom_before_denyall
-fw_custom_after_finished() {
-true
-}
-fw_custom_after_finished
-"
-            cmds = [
-                "ip6tables -A INPUT -p 50 -j ACCEPT",
-                "iptables -A INPUT -p udp --dport 4500 -j ACCEPT",
-                "iptables -A FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1221:65535 -j TCPMSS --set-mss 1220",
-                "iptables -A FORWARD -d 192.168.99.0/24 -j ACCEPT",
-                "iptables -t nat -A POSTROUTING -s 192.168.99.0/24 -j MASQUERADE"
-            ]
-            expect(Yast::IPSecConf.merge_into_customrules(txt, cmds)).to eq "#/bin/bash
-fw_custom_after_chain_creation() {
-ip6tables -A INPUT -p 50 -j ACCEPT
-iptables -A INPUT -p udp --dport 4500 -j ACCEPT
-true
-}
-fw_custom_after_chain_creation
-fw_custom_before_port_handling() {
-true
-}
-fw_custom_before_port_handling
-fw_custom_before_masq() {
-iptables -A FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1221:65535 -j TCPMSS --set-mss 1220
-iptables -A FORWARD -d 192.168.99.0/24 -j ACCEPT
-iptables -t nat -A POSTROUTING -s 192.168.99.0/24 -j MASQUERADE
-true
-}
-fw_custom_before_masq
-fw_custom_before_denyall() {
-true
-}
-fw_custom_before_denyall
-fw_custom_after_finished() {
-true
-}
-fw_custom_after_finished
-"
-            # In another exercise, merge with existing firewall commands with some overlap.
-            txt = "#/bin/bash
-fw_custom_after_chain_creation() {
-iptables -A INPUT -p udp --dport 4500 -j ACCEPT
-my_own_command1
-true
-}
-fw_custom_after_chain_creation
-fw_custom_before_port_handling() {
-true
-}
-fw_custom_before_port_handling
-fw_custom_before_masq() {
-my_own_command2
-iptables -A FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1221:65535 -j TCPMSS --set-mss 1220
-my_own_command3
-iptables -A FORWARD -d 192.168.99.0/24 -j ACCEPT
-my_own_command4
-true
-}
-fw_custom_before_masq
-fw_custom_before_denyall() {
-true
-}
-fw_custom_before_denyall
-fw_custom_after_finished() {
-true
-}
-fw_custom_after_finished
-"
-            expect(Yast::IPSecConf.merge_into_customrules(txt, cmds)).to eq "#/bin/bash
-fw_custom_after_chain_creation() {
-ip6tables -A INPUT -p 50 -j ACCEPT
-iptables -A INPUT -p udp --dport 4500 -j ACCEPT
-my_own_command1
-true
-}
-fw_custom_after_chain_creation
-fw_custom_before_port_handling() {
-true
-}
-fw_custom_before_port_handling
-fw_custom_before_masq() {
-iptables -t nat -A POSTROUTING -s 192.168.99.0/24 -j MASQUERADE
-my_own_command2
-iptables -A FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1221:65535 -j TCPMSS --set-mss 1220
-my_own_command3
-iptables -A FORWARD -d 192.168.99.0/24 -j ACCEPT
-my_own_command4
-true
-}
-fw_custom_before_masq
-fw_custom_before_denyall() {
-true
-}
-fw_custom_before_denyall
-fw_custom_after_finished() {
-true
-}
-fw_custom_after_finished
-"
-        end
-    end
-    describe ".remove_from_customrules" do
-        it "Remove iptable commands from rules file" do
-            txt = "#/bin/bash
-fw_custom_after_chain_creation() {
-ip6tables -A INPUT -p 50 -j ACCEPT
-iptables -A INPUT -p udp --dport 4500 -j ACCEPT
-my_own_command1
-true
-}
-fw_custom_after_chain_creation
-fw_custom_before_port_handling() {
-true
-}
-fw_custom_before_port_handling
-fw_custom_before_masq() {
-iptables -t nat -A POSTROUTING -s 192.168.99.0/24 -j MASQUERADE
-my_own_command2
-iptables -A FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1221:65535 -j TCPMSS --set-mss 1220
-my_own_command3
-iptables -A FORWARD -d 192.168.99.0/24 -j ACCEPT
-my_own_command4
-true
-}
-fw_custom_before_masq
-fw_custom_before_denyall() {
-true
-}
-fw_custom_before_denyall
-fw_custom_after_finished() {
-true
-}
-fw_custom_after_finished
-"
-            cmds = [
-                "ip6tables -A INPUT -p 50 -j ACCEPT",
-                "iptables -A INPUT -p udp --dport 4500 -j ACCEPT",
-                "iptables -A FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1221:65535 -j TCPMSS --set-mss 1220",
-                "iptables -A FORWARD -d 192.168.99.0/24 -j ACCEPT",
-                "iptables -t nat -A POSTROUTING -s 192.168.99.0/24 -j MASQUERADE"
-            ]
-            expect(Yast::IPSecConf.remove_from_customrules(txt, cmds)).to eq "#/bin/bash
-fw_custom_after_chain_creation() {
-my_own_command1
-true
-}
-fw_custom_after_chain_creation
-fw_custom_before_port_handling() {
-true
-}
-fw_custom_before_port_handling
-fw_custom_before_masq() {
-my_own_command2
-my_own_command3
-my_own_command4
-true
-}
-fw_custom_before_masq
-fw_custom_before_denyall() {
-true
-}
-fw_custom_before_denyall
-fw_custom_after_finished() {
-true
-}
-fw_custom_after_finished
-"
         end
     end
 end

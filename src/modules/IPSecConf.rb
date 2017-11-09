@@ -20,6 +20,7 @@
 # Authors: Howard Guo <hguo@suse.com>
 
 require "yast"
+require "fileutils"
 Yast.import "Package"
 Yast.import "Service"
 Yast.import "SuSEFirewall"
@@ -28,7 +29,6 @@ Yast.import "Summary"
 module Yast
     class IPSecConfModule < Module
         CUSTOMRULES_FILE = "/etc/YaST2/vpn_firewall_rules"
-        CUSTOMRULES_BAK_FILE = "/etc/YaST2/.vpn_firewall_rules_backup"
         include Yast::Logger
 
         # If TCP MSS reduction is required, the new MSS will be this value.
@@ -106,6 +106,15 @@ module Yast
             return @tcp_reduce_mss
         end
 
+        # Read the latest content of firewall setup script.
+        # Return nil if no such script is being used.
+        def get_customrules_txt
+          if File.file?(CUSTOMRULES_FILE)
+            return IO.readlines(CUSTOMRULES_FILE).join('')
+          end
+          return ''
+        end
+
         # Create a firewall configuration commands for all VPN gateways. Return the commands array.
         def gen_firewall_commands
             ret = []
@@ -115,8 +124,8 @@ module Yast
                 leftsubnet != nil && (leftsubnet.include?("::/0") || leftsubnet.include?("0.0.0.0/0"))
             }.map{|name, conf| conf["rightsourceip"]}
             # Open ports for IKE and allow ESP protocol
-            dport_accept_template = "%s -A INPUT -p udp --dport %d -j ACCEPT"
-            p_accept_template = "%s -A INPUT -p %d -j ACCEPT"
+            dport_accept_template = "%s -I INPUT -p udp --dport %d -j ACCEPT"
+            p_accept_template = "%s -I INPUT -p %d -j ACCEPT"
             open_prot = ""
             if @ipsec_conns.length > 0
                 ret << dport_accept_template % ["iptables", 500]
@@ -129,8 +138,8 @@ module Yast
             # Reduce TCP MSS - if this has to be done, it must come before FORWARD and MASQUERADE
             inet_access = ""
             if @tcp_reduce_mss
-                ret <<  "iptables -A FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss #{REDUCED_MSS+1}:65535 -j TCPMSS --set-mss #{REDUCED_MSS}"
-                ret << "ip6tables -A FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss #{REDUCED_MSS+1}:65535 -j TCPMSS --set-mss #{REDUCED_MSS}"
+                ret <<  "iptables -I FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss #{REDUCED_MSS+1}:65535 -j TCPMSS --set-mss #{REDUCED_MSS}"
+                ret << "ip6tables -I FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss #{REDUCED_MSS+1}:65535 -j TCPMSS --set-mss #{REDUCED_MSS}"
             end
             # Forwarding for Internet access
             inet_access_networks.each { |cidr|
@@ -138,9 +147,9 @@ module Yast
                 if cidr.include?(":")
                     iptables = "ip6tables"
                 end
-                ret << "#{iptables} -A FORWARD -s #{cidr} -j ACCEPT"
-                ret << "#{iptables} -A FORWARD -d #{cidr} -j ACCEPT"
-                ret << "#{iptables} -t nat -A POSTROUTING -s #{cidr} -j MASQUERADE"
+                ret << "#{iptables} -I FORWARD -s #{cidr} -j ACCEPT"
+                ret << "#{iptables} -I FORWARD -d #{cidr} -j ACCEPT"
+                ret << "#{iptables} -t nat -I POSTROUTING -s #{cidr} -j MASQUERADE"
             }
             return ret
         end
@@ -206,34 +215,12 @@ module Yast
                     successful = false
                 end
             end
-            # Configure/deconfigure firewall
-            uninstall_customrules
             if @enable_ipsec
-                install_customrules(gen_firewall_commands)
-            end
-            SuSEFirewall.Read
-            if SuSEFirewall.IsEnabled
-                if @enable_ipsec
-                    if !SuSEFirewall.IsStarted
-                        Report.Warning(_("SuSE firewall is enabled but not activated.\n" +
-                            "In order for VPN to function properly, SuSE firewall will now be activated."))
-                    end
-                    if !SuSEFirewall.SaveAndRestartService
-                        Report.Error(_("Failed to restart SuSE firewall."))
-                        successful = false
-                    end
-                else
-                    if SuSEFirewall.IsStarted && !SuSEFirewall.SaveAndRestartService
-                        Report.Error(_("Failed to restart SuSE firewall."))
-                        successful = false
-                    end
-                end
-            else
-                Report.LongWarning(
-                    _("Both VPN gateway and clients require special SuSE firewall configuration.\n" +
-                      "SuSE firewall is not enabled, therefore you must manually run the configuration script " +
-                      "on every reboot. The script will be run now.\n" +
-                      "The script is located at %s") % [CUSTOMRULES_FILE])
+              # Until https://bugzilla.suse.com/show_bug.cgi?id=1067448 is resolved, user has to run firewall setup manually.
+              install_customrules(gen_firewall_commands)
+              Report.LongWarning(_("IPSec requires firewall's cooperation to function properly. "+
+                "Please manually run firewall setup script '%s'. " +
+                "Remember to re-run the script after having booted the system or reloaded firewalld.") % [CUSTOMRULES_FILE])
             end
             @autoyast_modified = false
             return successful
@@ -402,145 +389,10 @@ module Yast
                 }.flatten, true)
         end
 
-        # Return the latest file name of custom-rules script in firewall.
-        # If the file does not exist or not specified, return nil.
-        def get_susefw_customrules
-            attr_value = SCR.Read(path(".sysconfig.SuSEfirewall2.FW_CUSTOMRULES")).to_s.strip
-            if attr_value == ''
-                return nil
-            end
-            if !::File.exist?(attr_value)
-                return nil
-            end
-            return attr_value
-        end
-
-        # Read the latest content of custom rules script defined in firewall.
-        # Return nil if no such script is being used.
-        def get_customrules_txt
-            filename = get_susefw_customrules
-            if filename == nil
-                return nil
-            end
-            return IO.readlines(filename).join('')
-        end
-
-        # Return true only if the
-        def customrules_contain_all(existing_txt, cmds)
-            new_txt = merge_into_customrules(existing_txt, cmds)
-            return new_txt.strip == existing_txt.strip
-        end
-
-        # Merge the firewall commands into the specified section of custom rules text and return the whole text.
-        def merge_into_customrules_section(existing_txt, cmds, section)
-            # Split text into lines, because each iptable command occupies exactly one line.
-            lines = existing_txt.split("\n")
-            # Find the line number of the section for new iptable commands to be placed
-            lineno_chain = -1
-            lines.each_with_index {|line, lineno|
-                if line.match(section) != nil
-                    lineno_chain = lineno
-                    break
-                end
-            }
-            # Figure out new commands to merge
-            insert_cmds = []
-            cmds.each { |cmd|
-                cmd = cmd.strip
-                if lines.none?{|line| line.index(cmd) != nil}
-                    insert_cmds << cmd
-                end
-            }
-            # Put new commands into the lines immediately following the section declaration
-            if insert_cmds.length > 0
-                lines.insert(lineno_chain+1, *insert_cmds)
-            end
-            return lines.join("\n")
-        end
-
-        # Merge the firewall commands into appropriate sections of the custom rules text and return the whole text.
-        def merge_into_customrules(existing_txt, cmds)
-            # Categorise the firewall commands
-            open_port = []
-            forward_route = []
-            cmds.each {|cmd|
-                # Open port/allow protocol commands are in -A INPUT, i.e. "chian_creation".
-                if cmd.index('-A INPUT') != nil
-                    open_port << cmd
-                else
-                    # All other commands deal with changing MSS or enable NAT, they go into "befor_masq".
-                    forward_route << cmd
-                end
-            }
-            txt = merge_into_customrules_section(existing_txt, open_port, /fw_custom_after_chain_creation.*{/)
-            return merge_into_customrules_section(txt, forward_route, /fw_custom_before_masq.*{/) + "\n"
-        end
-
-        # Remove some iptable commands from custom rules text. Return the new text.
-        def remove_from_customrules(existing_txt, cmds)
-            # Split text into lines, because each iptable command occupies exactly one line.
-            lines = existing_txt.split("\n")
-            ret = []
-            lines.each {|line|
-                if cmds.none?{|cmd| line.index(cmd.strip) != nil}
-                    ret << line
-                end
-            }
-            return ret.join("\n") + "\n"
-        end
-
-        # If firewall does not yet use a custom rules script, create it and give it to firewall.
-        # Then no matter what, merge the firewall commands into the effective custom rules script.
+        # install_customrules creates a shell script comprises iptable commands for installing firewall rules for IPSec.
         def install_customrules(cmds)
-            template = '
-#/bin/bash
-fw_custom_after_chain_creation() {
-true
-}
-fw_custom_after_chain_creation
-fw_custom_before_port_handling() {
-true
-}
-fw_custom_before_port_handling
-fw_custom_before_masq() {
-true
-}
-fw_custom_before_masq
-fw_custom_before_denyall() {
-true
-}
-fw_custom_before_denyall
-fw_custom_after_finished() {
-true
-}
-fw_custom_after_finished
-'
-            # Always save a copy to the default location so that user can run it manually
-            IO.write(CUSTOMRULES_FILE, merge_into_customrules(template, cmds))
-            customrules_file = get_susefw_customrules()
-            if customrules_file == nil
-                # If user is not already using custom rules script, set custom rules script to the default location.
-                new_file = CUSTOMRULES_FILE + '.applied'
-                IO.write(new_file, merge_into_customrules(template, cmds))
-                SCR.Write(path(".sysconfig.SuSEfirewall2.FW_CUSTOMRULES"), new_file)
-                SCR.Write(path(".sysconfig.SuSEfirewall2"), nil)
-            else
-                # Merge commands into the existing custom rules script.
-                file_name = get_susefw_customrules
-                txt = merge_into_customrules(get_customrules_txt, cmds)
-                IO.write(customrules_file, txt)
-            end
-            # Keep a copy of the applied firewall commands so they may be reverted later on
-            IO.write(CUSTOMRULES_BAK_FILE, cmds.join("\n"))
-        end
-
-        def uninstall_customrules
-            file_name = get_susefw_customrules
-            if file_name == nil
-                return
-            end
-            # Remove firewall commands from the file
-            IO.write(file_name, remove_from_customrules(IO.read(file_name), IO.readlines(CUSTOMRULES_BAK_FILE)))
+            IO.write(CUSTOMRULES_FILE, "#!/bin/bash\n" + cmds.join("\n"))
+            ::FileUtils.chmod(0755, CUSTOMRULES_FILE)
         end
     end
     IPSecConf = IPSecConfModule.new

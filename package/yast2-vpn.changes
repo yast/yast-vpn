@@ -1,4 +1,11 @@
 -------------------------------------------------------------------
+Thu Nov  9 15:39:33 UTC 2017 - hguo@suse.com
+
+- Remove integration with SUSEFirewall in preparation for working
+  with firewalld.
+  Bump version to 3.2.
+
+-------------------------------------------------------------------
 Thu May 18 08:46:12 UTC 2017 - howard@suse.de
 
 - Fix a minor error in translation string on main dialog.
