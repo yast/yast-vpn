@@ -2,3 +2,6 @@
 yast-vpn.kdev4
 y2signal.log
 package/*.tar.bz2
+/.yardoc
+doc/autodocs
+*.pot
