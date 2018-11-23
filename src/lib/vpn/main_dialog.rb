@@ -58,7 +58,7 @@ module VPN
             # Render global options, connection list, and connection configuration frames.
             VBox(
                 Left(HBox(
-                    Yast::Icon::Simple("yast-device-tree"),
+                    Yast::Icon::Simple("yast-vpn"),
                     Heading(_("VPN Gateway and Client"))
                 )),
                 HBox(
