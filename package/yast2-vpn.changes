@@ -1,4 +1,10 @@
 -------------------------------------------------------------------
+Mon Nov 26 06:25:02 UTC 2018 - Noah Davis <noahadvs@gmail.com>
+
+- Provide icon with module (boo#1109310)
+- 4.0.1
+
+-------------------------------------------------------------------
 Fri Apr  6 18:55:00 UTC 2018 - mfilka@suse.com
 
 - bnc#1087957 - version bump

@@ -33,7 +33,7 @@ X-SuSE-YaST-AutoInstResource=vpn
 X-SuSE-YaST-AutoInstClonable=true
 X-SuSE-YaST-Keywords=vpn,ipsec,gateway
 
-Icon=yast-device-tree
+Icon=yast-vpn
 Exec=xdg-su -c "/sbin/yast2 vpn"
 
 Name=VPN Gateway and Clients
