@@ -12,7 +12,7 @@
 # license that conforms to the Open Source Definition (Version 1.9)
 # published by the Open Source Initiative.
 
-# Please submit bugfixes or comments via http://bugs.opensuse.org/
+# Please submit bugfixes or comments via https://bugs.opensuse.org/
 #
 
 
@@ -24,9 +24,7 @@ Source0:        %{name}-%{version}.tar.bz2
 Summary:        A YaST module for configuring VPN gateway and clients
 License:        GPL-2.0
 Group:          System/YaST
-BuildArch:      noarch
-Requires:       yast2
-Requires:       yast2-ruby-bindings
+
 BuildRequires:  yast2
 BuildRequires:  yast2-devtools
 BuildRequires:  yast2-ruby-bindings
@@ -34,6 +32,10 @@ BuildRequires:  rubygem(rspec)
 BuildRequires:  rubygem(yast-rake)
 
 PreReq:         %fillup_prereq
+Requires:       yast2
+Requires:       yast2-ruby-bindings
+
+BuildArch:      noarch
 
 %description
 A YaST module for managing VPN gateway and client connections to secure site-to-site communication via IPSec VPN.
@@ -42,22 +44,23 @@ A YaST module for managing VPN gateway and client connections to secure site-to-
 %setup -q
 
 %check
-rake test:unit
+%yast_check
 
 %build
 
 %install
-rake install DESTDIR="%{buildroot}"
+%yast_install
+%yast_metainfo
 
 %files
-%defattr(-,root,root)
-%doc %yast_docdir
-%yast_desktopdir
-%yast_moduledir
-%yast_clientdir
-%yast_schemadir
-%yast_libdir
-%yast_scrconfdir
+%doc %{yast_docdir}
+%{yast_desktopdir}
+%{yast_metainfodir}
+%{yast_moduledir}
+%{yast_clientdir}
+%{yast_schemadir}
+%{yast_libdir}
+%{yast_scrconfdir}
 %{yast_icondir}
 
 %changelog
