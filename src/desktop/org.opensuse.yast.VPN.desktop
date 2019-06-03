@@ -36,6 +36,7 @@ X-SuSE-YaST-Keywords=vpn,ipsec,gateway
 Icon=yast-vpn
 Exec=xdg-su -c "/sbin/yast2 vpn"
 
-Name=VPN Gateway and Clients
-GenericName=Configure VPN gateway and clients using IPSec
+Name=YaST VPN
+GenericName=VPN Gateway and Clients
+Comment=Configure VPN gateway and clients using IPSec
 StartupNotify=true
