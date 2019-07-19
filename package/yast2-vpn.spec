@@ -27,6 +27,7 @@ Group:          System/YaST
 
 BuildRequires:  yast2
 BuildRequires:  yast2-devtools >= 4.2.2
+BuildRequires:  update-desktop-files
 BuildRequires:  yast2-ruby-bindings
 BuildRequires:  rubygem(rspec)
 BuildRequires:  rubygem(yast-rake)
