@@ -1,4 +1,7 @@
-.kdev4
+doc/autodocs
+package/*.tar.bz2
 yast-vpn.kdev4
 y2signal.log
-package/*.tar.bz2
+vpn.pot
+.kdev4
+.yardoc/
