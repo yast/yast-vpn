@@ -20,6 +20,8 @@
 # Authors: Howard Guo <hguo@suse.com>
 
 require "yast"
+require "cfa/sysctl"
+
 Yast.import "Package"
 Yast.import "Service"
 Yast.import "SuSEFirewall"
@@ -185,21 +187,21 @@ module Yast
                 leftsubnet = conf["leftsubnet"]
                 !leftsubnet.nil? && leftsubnet.include?(".")
             }
-                SCR.Write(path(".etc.sysctl_conf.\"net.ipv4.ip_forward\""), "1")
-                SCR.Write(path(".etc.sysctl_conf.\"net.ipv4.conf.all.forwarding\""), "1")
-                SCR.Write(path(".etc.sysctl_conf.\"net.ipv4.conf.default.forwarding\""), "1")
+                sysctl_file.forward_ipv4 = true
+                sysctl_file.ipv4_forwarding_all = true
+                sysctl_file.ipv4_forwarding_default = true
                 sysctl_modified = true
             end
             if @ipsec_conns.any? { |name, conf|
                 leftsubnet = conf["leftsubnet"]
                 !leftsubnet.nil? && leftsubnet.include?(":")
             }
-                SCR.Write(path(".etc.sysctl_conf.\"net.ipv6.conf.all.forwarding\""), "1")
-                SCR.Write(path(".etc.sysctl_conf.\"net.ipv6.conf.default.forwarding\""), "1")
+                sysctl_file.ipv6_forwarding_all = true
+                sysctl_file.ipv6_forwarding_default = true
                 sysctl_modified = true
             end
             if sysctl_modified
-                SCR.Write(path(".etc.sysctl_conf"), nil)
+                sysctl_file.save
                 sysctl_apply = SCR.Execute(Yast::Path.new(".target.bash_output"), "/sbin/sysctl -p/etc/sysctl.conf 2>&1")
                 if !sysctl_apply["exit"].zero?
                     Report.LongError(_("Failed to apply IP forwarding settings using sysctl:") + sysctl_apply["stdout"])
@@ -541,6 +543,18 @@ fw_custom_after_finished
             end
             # Remove firewall commands from the file
             IO.write(file_name, remove_from_customrules(IO.read(file_name), IO.readlines(CUSTOMRULES_BAK_FILE)))
+        end
+
+        # Returns the sysctl configuration
+        #
+        # @note It memoizes the value until {#main} is called.
+        #
+        # @return [Yast2::CFA::Sysctl]
+        def sysctl_file
+          return @sysctl_file if @sysctl_file
+          @sysctl_file = CFA::Sysctl.new
+          @sysctl_file.load
+          @sysctl_file
         end
     end
     IPSecConf = IPSecConfModule.new
