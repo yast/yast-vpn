@@ -17,7 +17,7 @@
 
 
 Name:           yast2-vpn
-Version:        4.2.3
+Version:        4.2.4
 Release:        0
 Url:            https://github.com/yast/yast-vpn
 Source0:        %{name}-%{version}.tar.bz2
@@ -25,8 +25,8 @@ Summary:        A YaST module for configuring VPN gateway and clients
 License:        GPL-2.0
 Group:          System/YaST
 
-# CFA::Sysctl
-BuildRequires:  yast2 >= 4.2.25
+# CFA::SysctlConfig
+BuildRequires:  yast2 >= 4.2.67
 BuildRequires:  yast2-devtools >= 4.2.2
 BuildRequires:  update-desktop-files
 BuildRequires:  yast2-ruby-bindings
@@ -35,8 +35,8 @@ BuildRequires:  rubygem(%{rb_default_ruby_abi}:yast-rake)
 
 PreReq:         %fillup_prereq
 
-# CFA::Sysctl
-Requires:       yast2 >= 4.2.25
+# CFA::SysctlConfig
+Requires:       yast2 >= 4.2.67
 Requires:       yast2-ruby-bindings
 
 BuildArch:      noarch
