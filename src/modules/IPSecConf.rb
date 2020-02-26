@@ -20,7 +20,7 @@
 # Authors: Howard Guo <hguo@suse.com>
 
 require "yast"
-require "cfa/sysctl"
+require "cfa/sysctl_config"
 
 Yast.import "Package"
 Yast.import "Service"
@@ -182,27 +182,35 @@ module Yast
                 Service.Stop("strongswan")
             end
             # Configure IP forwarding
-            sysctl_modified = false
+            sysctlconfig_modified = false
             if @ipsec_conns.any? { |name, conf|
                 leftsubnet = conf["leftsubnet"]
                 !leftsubnet.nil? && leftsubnet.include?(".")
             }
-                sysctl_file.forward_ipv4 = true
-                sysctl_file.ipv4_forwarding_all = true
-                sysctl_file.ipv4_forwarding_default = true
-                sysctl_modified = true
+                sysctlconfig_file.forward_ipv4 = true
+                sysctlconfig_file.ipv4_forwarding_all = true
+                sysctlconfig_file.ipv4_forwarding_default = true
+                sysctlconfig_modified = true
             end
             if @ipsec_conns.any? { |name, conf|
                 leftsubnet = conf["leftsubnet"]
                 !leftsubnet.nil? && leftsubnet.include?(":")
             }
-                sysctl_file.ipv6_forwarding_all = true
-                sysctl_file.ipv6_forwarding_default = true
-                sysctl_modified = true
+                sysctlconfig_file.ipv6_forwarding_all = true
+                sysctlconfig_file.ipv6_forwarding_default = true
+                sysctlconfig_modified = true
             end
-            if sysctl_modified
-                sysctl_file.save
-                sysctl_apply = SCR.Execute(Yast::Path.new(".target.bash_output"), "/sbin/sysctl -p/etc/sysctl.conf 2>&1")
+            if sysctlconfig_modified
+                sysctlconfig_file.save unless sysctlconfig_file.conflict?
+                # --system : Load settings from all system configuration files.
+                # /boot/sysctl.conf-<kernelversion>
+                # /run/sysctl.d/*.conf
+                # /etc/sysctl.d/*.conf
+                # /usr/local/lib/sysctl.d/*.conf
+                # /usr/lib/sysctl.d/*.conf
+                # /lib/sysctl.d/*.conf
+                # /etc/sysctl.conf
+                sysctl_apply = SCR.Execute(Yast::Path.new(".target.bash_output"), "/sbin/sysctl --system 2>&1")
                 if !sysctl_apply["exit"].zero?
                     Report.LongError(_("Failed to apply IP forwarding settings using sysctl:") + sysctl_apply["stdout"])
                     successful = false
@@ -549,12 +557,12 @@ fw_custom_after_finished
         #
         # @note It memoizes the value until {#main} is called.
         #
-        # @return [Yast2::CFA::Sysctl]
-        def sysctl_file
-          return @sysctl_file if @sysctl_file
-          @sysctl_file = CFA::Sysctl.new
-          @sysctl_file.load
-          @sysctl_file
+        # @return [Yast2::CFA::SysctlConfig]
+        def sysctlconfig_file
+          return @sysctlconfig_file if @sysctlconfig_file
+          @sysctlconfig_file = CFA::SysctlConfig.new
+          @sysctlconfig_file.load
+          @sysctlconfig_file
         end
     end
     IPSecConf = IPSecConfModule.new
