@@ -192,10 +192,10 @@ module VPN
             Frame(_("Gateway certificate"), VBox(
                 Left(MinWidth(40, HBox(
                     InputField(Id(:gw_cert), _("Path to certificate file"), ""),
-                    PushButton(Id(:select_gw_cert), _("Pick.."))))),
+                    Bottom(PushButton(Id(:select_gw_cert), _("Pick..")))))),
                 Left(MinWidth(40, HBox(
                     InputField(Id(:gw_cert_key), _("Path to certificate key file"), ""),
-                    PushButton(Id(:select_gw_cert_key), _("Pick..")))))))
+                    Bottom(PushButton(Id(:select_gw_cert_key), _("Pick.."))))))))
         end
 
         def mk_xauth_frame

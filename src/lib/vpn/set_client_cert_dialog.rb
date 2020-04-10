@@ -47,10 +47,10 @@ module VPN
             VBox(
                 Left(MinWidth(30, HBox(
                         InputField(Id(:cert), _("Path to certificate file:"), @cert_path),
-                        PushButton(Id(:select_cert), _("Pick.."))))),
+                        Bottom(PushButton(Id(:select_cert), _("Pick..")))))),
                 Left(MinWidth(30, HBox(
                         InputField(Id(:cert_key), _("Path to certificate key file:"), @key_path),
-                        PushButton(Id(:select_cert_key), _("Pick.."))))),
+                        Bottom(PushButton(Id(:select_cert_key), _("Pick..")))))),
                 Left(Label(_("Please do not store the key in the certificate file itself."))),
                 ButtonBox(
                     PushButton(Id(:ok), Yast::Label.OKButton),
