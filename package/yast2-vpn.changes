@@ -4,7 +4,7 @@ Tue Aug 11 12:25:45 CEST 2020 - schubi@suse.de
 - AutoYaST: Added supplements: autoyast(vpn) into the spec file
   in order to install this packages if the section has been defined
   in the AY configuration file (bsc#1146494).
-- 4.2.5
+- 4.3.0
 
 -------------------------------------------------------------------
 Wed Feb 26 10:27:01 CET 2020 - schubi@suse.de
