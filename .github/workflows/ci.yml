@@ -6,30 +6,30 @@ name: CI
 on: [push, pull_request]
 
 jobs:
-    Tests:
-      runs-on: ubuntu-latest
-      container: registry.opensuse.org/yast/head/containers/yast-ruby:latest
+  Tests:
+    runs-on: ubuntu-latest
+    container: registry.opensuse.org/yast/head/containers/yast-ruby:latest
 
-      steps:
+    steps:
 
-      - name: Git Checkout
-        uses: actions/checkout@v2
+    - name: Git Checkout
+      uses: actions/checkout@v2
 
-      # just for easier debugging...
-      - name: Inspect Installed Packages
-        run: rpm -qa | sort
+    # just for easier debugging...
+    - name: Inspect Installed Packages
+      run: rpm -qa | sort
 
-      - name: Unit Tests
-        run: rake test:unit
-        # enable code coverage reporting
-        env:
-          COVERAGE: 1
+    - name: Unit Tests
+      run: rake test:unit
+      # enable code coverage reporting
+      env:
+        COVERAGE: 1
 
-      # send the coverage report to coveralls.io
-      - name: Coveralls Report
-        uses: coverallsapp/github-action@master
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+    # send the coverage report to coveralls.io
+    - name: Coveralls Report
+      uses: coverallsapp/github-action@master
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # FIXME: Rubocop is not used here
   # Rubocop:
