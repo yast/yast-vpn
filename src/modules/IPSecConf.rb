@@ -62,7 +62,7 @@ module Yast
             load_ipsec_conf_ini
             load_ipsec_secrets_ini
             # Read daemon settings
-            @enable_ipsec = Service.Enabled("strongswan")
+            @enable_ipsec = Service.Enabled("ipsec")
             customrules_content = get_customrules_txt
             @tcp_reduce_mss = customrules_content != nil && customrules_content.include?("--set-mss #{REDUCED_MSS}")
             @autoyast_modified = true
@@ -172,14 +172,14 @@ module Yast
             SCR.Write(path(".etc.ipsec_secrets"), nil)
             # Enable/disable daemon
             if @enable_ipsec
-                Service.Enable("strongswan")
-                if !(Service.Active("strongswan") ? Service.Restart("strongswan") : Service.Start("strongswan"))
+                Service.Enable("strongswan-starter")
+                if !(Service.Active("ipsec") ? Service.Restart("ipsec") : Service.Start("ipsec"))
                     Report.Error(_("Failed to start IPSec daemon."))
                     successful = false
                 end
             else
-                Service.Disable("strongswan")
-                Service.Stop("strongswan")
+                Service.Stop("ipsec")
+                Service.Disable("strongswan-starter")
             end
             # Configure IP forwarding
             sysctlconfig_modified = false
