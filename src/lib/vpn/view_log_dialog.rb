@@ -77,7 +77,7 @@ module VPN
                 _("Existing connections will be interrupted.\n" +
                     "Do you still wish to continue?")
                 )
-                if !(Yast::Service.Active("strongswan") ? Yast::Service.Restart("strongswan") : Yast::Service.Start("strongswan"))
+                if !(Yast::Service.Active("ipsec") ? Yast::Service.Restart("ipsec") : Yast::Service.Start("ipsec"))
                     Yast::Popup.Error(_("Failed to restart IPSec daemon"))
                 end
             end
@@ -90,7 +90,7 @@ module VPN
         private
         # Read daemon status and refresh the content of log views.
         def refresh_status
-            sh_daemon_status = Yast::SCR.Execute(Yast::Path.new(".target.bash_output"), "systemctl status strongswan")
+            sh_daemon_status = Yast::SCR.Execute(Yast::Path.new(".target.bash_output"), "systemctl status ipsec")
             Yast::UI.ChangeWidget(Id(:daemon_status), :Value, sh_daemon_status["stdout"])
 
             sh_conn_status = Yast::SCR.Execute(Yast::Path.new(".target.bash_output"), "ipsec statusall 2>&1")
