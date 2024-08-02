@@ -3,8 +3,7 @@ YaST VPN module
 
 [![Workflow Status](https://github.com/yast/yast-vpn/workflows/CI/badge.svg?branch=master)](
 https://github.com/yast/yast-vpn/actions?query=branch%3Amaster)
-[![Jenkins Status](https://ci.opensuse.org/buildStatus/icon?job=yast-yast-vpn-master)](
-https://ci.opensuse.org/view/Yast/job/yast-yast-vpn-master/)
+[![OBS](https://github.com/yast/yast-vpn/actions/workflows/submit.yml/badge.svg)](https://github.com/yast/yast-vpn/actions/workflows/submit.yml)
 
 The YaST module manages VPN gateway and client connections for securing site-to-site communication via IPSec VPN.
 
