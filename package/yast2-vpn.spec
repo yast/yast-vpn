@@ -1,7 +1,7 @@
 #
 # spec file for package yast2-vpn
 #
-# Copyright (c) 2016 SUSE LINUX GmbH, Nuernberg, Germany.
+# Copyright (c) 2023 SUSE LLC
 #
 # All modifications and additions to the file contributed by third parties
 # remain the property of their copyright owners, unless otherwise agreed
@@ -19,16 +19,16 @@
 Name:           yast2-vpn
 Version:        4.6.1
 Release:        0
-Url:            https://github.com/yast/yast-vpn
+URL:            https://github.com/yast/yast-vpn
 Source0:        %{name}-%{version}.tar.bz2
 Summary:        A YaST module for configuring VPN gateway and clients
-License:        GPL-2.0
+License:        GPL-2.0-only
 Group:          System/YaST
 
 # CFA::SysctlConfig
 BuildRequires:  yast2 >= 4.2.67
-BuildRequires:  yast2-devtools >= 4.2.2
 BuildRequires:  update-desktop-files
+BuildRequires:  yast2-devtools >= 4.2.2
 BuildRequires:  yast2-ruby-bindings
 BuildRequires:  rubygem(%{rb_default_ruby_abi}:rspec)
 BuildRequires:  rubygem(%{rb_default_ruby_abi}:yast-rake)
